@@ -67,7 +67,7 @@ export default async function Home() {
               <CopyButton text={mcpUrl} />
             </div>
             <div className="mt-3 rounded-xl bg-[#1d1a17] p-3 font-mono text-[11px] leading-relaxed text-[#f5efe6]">
-              <div className="text-white/40"># Claude Code</div>
+              <div className="text-white/60"># Claude Code</div>
               <div className="break-all">claude mcp add --transport http chefs-nod {mcpUrl}</div>
             </div>
             <div className="mt-4 text-xs text-muted">Tools: get_menu · check_allergies · place_order · get_order_status</div>

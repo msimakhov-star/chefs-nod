@@ -78,7 +78,7 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
           <Logo className="h-9 w-9" />
           <div>
             <div className="font-display text-xl font-semibold">Kitchen · {restaurant.name}</div>
-            <div className="text-xs text-white/50">Allergy orders wait here with the money held in PayPal. Nothing is charged until you nod.</div>
+            <div className="text-xs text-white/65">Allergy orders wait here with the money held in PayPal. Nothing is charged until you nod.</div>
           </div>
         </div>
         <div className="flex items-center gap-6 text-sm">
@@ -97,7 +97,7 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
         <div>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-saffron">Needs your nod</h2>
           {waiting.length === 0 ? (
-            <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-white/15 text-white/40">No orders waiting. New allergy orders appear here instantly.</div>
+            <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-white/15 text-white/60">No orders waiting. New allergy orders appear here instantly.</div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-2">
               {waiting.map((o) => (
@@ -108,31 +108,31 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
         </div>
         <aside className="space-y-6">
           <div>
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Waiting for PayPal approval</h2>
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-white/65">Waiting for PayPal approval</h2>
             <div className="space-y-2">
-              {pending.length === 0 && <div className="text-sm text-white/30">None</div>}
+              {pending.length === 0 && <div className="text-sm text-white/55">None</div>}
               {pending.slice(0, 6).map((o) => (
                 <div key={o.id} className="rounded-xl bg-white/5 px-4 py-3 text-sm">
                   <div className="flex justify-between">
                     <span>{o.dinerName}</span>
                     <span className="text-white/60">{gbp(o.authorizedMinor)}</span>
                   </div>
-                  <div className="text-xs text-white/40">{o.channel === "agent" ? `via ${o.agentName}` : "web order"} · diner hasn&rsquo;t approved yet</div>
+                  <div className="text-xs text-white/60">{o.channel === "agent" ? `via ${o.agentName}` : "web order"} · diner hasn&rsquo;t approved yet</div>
                 </div>
               ))}
             </div>
           </div>
           <div>
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Recently decided</h2>
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-white/65">Recently decided</h2>
             <div className="space-y-2">
-              {done.length === 0 && <div className="text-sm text-white/30">None yet</div>}
+              {done.length === 0 && <div className="text-sm text-white/55">None yet</div>}
               {done.map((o) => (
                 <div key={o.id} className="rounded-xl bg-white/5 px-4 py-3 text-sm">
                   <div className="flex justify-between">
                     <span>{o.dinerName}</span>
-                    <span className={o.status === "captured" ? "text-[#7fd1a0]" : "text-white/50"}>{o.status === "captured" ? `charged ${gbp(o.capturedMinor)}` : o.status === "expired" ? "expired, released" : o.status === "voided" ? "declined, released" : o.status}</span>
+                    <span className={o.status === "captured" ? "text-[#7fd1a0]" : "text-white/65"}>{o.status === "captured" ? `charged ${gbp(o.capturedMinor)}` : o.status === "expired" ? "expired, released" : o.status === "voided" ? "declined, released" : o.status}</span>
                   </div>
-                  {o.decision?.outcome === "approved_with_changes" && <div className="text-xs text-white/40">changed · held {gbp(o.authorizedMinor)}</div>}
+                  {o.decision?.outcome === "approved_with_changes" && <div className="text-xs text-white/60">changed · held {gbp(o.authorizedMinor)}</div>}
                 </div>
               ))}
             </div>
@@ -147,7 +147,7 @@ function Stat({ label, value, hot }: { label: string; value: string; hot?: boole
   return (
     <div className="text-right">
       <div className={`font-display text-2xl font-semibold ${hot ? "text-saffron" : ""}`}>{value}</div>
-      <div className="text-[11px] uppercase tracking-wider text-white/40">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-white/60">{label}</div>
     </div>
   );
 }
@@ -198,15 +198,15 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
     <article className={`arrive overflow-hidden rounded-2xl bg-[#1d1a17] ring-1 ${risk === "high" ? "ring-chili/70" : risk === "check" ? "ring-saffron/60" : "ring-white/10"}`}>
       <div className={`flex items-start justify-between gap-3 px-5 py-4 ${risk === "high" ? "bg-chili/25" : risk === "check" ? "bg-saffron/15" : "bg-white/5"}`}>
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-white/65">
             {order.channel === "agent" ? `🤖 Ordered by ${order.agentName}` : order.channel === "replay" ? "Replay order" : "Web order"} · for {order.dinerName}
           </div>
           <div className="mt-1 font-display text-xl font-semibold leading-snug">{order.check?.headline ?? "New order"}</div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="text-xs text-white/50">PayPal holds</div>
+          <div className="text-xs text-white/65">PayPal holds</div>
           <div className="font-display text-xl font-semibold">{gbp(order.authorizedMinor)}</div>
-          {left != null && <div className={`text-xs tabular-nums ${left < 120 ? "text-chili" : "text-white/50"}`}>auto-release in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</div>}
+          {left != null && <div className={`text-xs tabular-nums ${left < 120 ? "text-[#ff8a80]" : "text-white/65"}`}>auto-release in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</div>}
         </div>
       </div>
 
@@ -243,7 +243,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                     {it.qty > 1 && `${it.qty}× `}
                     {it.dishName}
                   </span>
-                  <span className="text-white/50"> · {it.forPerson}</span>
+                  <span className="text-white/65"> · {it.forPerson}</span>
                 </div>
                 <div className="flex gap-1">
                   {hit.map((a) => (
@@ -302,7 +302,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                 ⚠ Still contains a declared allergen: {stillContains.map((x) => `${x.it.dishName} for ${x.it.forPerson} (${x.left.map(allergenLabel).join(", ")})`).join("; ")}. Only nod if you are sure, or decline.
               </div>
             )}
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="mb-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/30" />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="mb-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-white/55 focus:border-white/30" />
             <div className="flex flex-wrap items-center gap-2">
               <button disabled={busy} onClick={() => decide(changed ? "approved_with_changes" : "approved")} className="flex-1 rounded-xl bg-[#7fd1a0] px-4 py-3.5 text-base font-bold text-black hover:brightness-105 disabled:opacity-50">
                 {busy ? "Talking to PayPal…" : changed ? `Nod with changes · charge ${gbp(newTotal)}` : `Nod · charge ${gbp(order.authorizedMinor)}`}
@@ -311,7 +311,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                 Can&rsquo;t do it
               </button>
             </div>
-            {changed && delta < 0 && <div className="mt-2 text-xs text-white/50">PayPal captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold and closes it. The diner sees the change in their PayPal receipt.</div>}
+            {changed && delta < 0 && <div className="mt-2 text-xs text-white/65">PayPal captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold and closes it. The diner sees the change in their PayPal receipt.</div>}
           </>
         ) : (
           <div className="space-y-2">
