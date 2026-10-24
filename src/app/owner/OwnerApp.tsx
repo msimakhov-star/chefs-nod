@@ -230,6 +230,20 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
           {busy === "publish" ? "Syncing…" : "Sync confirmed dishes to PayPal catalog"}
         </button>
       </div>
+      <div className="-mt-2 text-sm text-muted">
+        No menu to hand?{" "}
+        <button
+          disabled={!!busy}
+          onClick={async () => {
+            const blob = await (await fetch("/demo/fennel-room-menu.jpg")).blob();
+            importPhoto(new File([blob], "fennel-room-menu.jpg", { type: "image/jpeg" }));
+          }}
+          className="font-medium text-basil underline-offset-2 hover:underline"
+        >
+          Import our sample menu
+        </button>{" "}
+        (<a href="/demo/fennel-room-menu.jpg" target="_blank" className="underline-offset-2 hover:underline">see it</a>)
+      </div>
       {msg && <div className="rounded-xl bg-basil-soft px-4 py-3 text-sm text-basil">{msg}</div>}
 
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
