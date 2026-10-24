@@ -73,6 +73,36 @@ export default async function Home() {
           </div>
         </section>
 
+        <section className="mb-4 rounded-3xl border border-line bg-paper p-6 sm:p-8">
+          <div className="grid gap-6 md:grid-cols-[1.4fr_1fr]">
+            <div>
+              <h2 className="font-display text-2xl font-semibold">Try it in 60 seconds</h2>
+              <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed">
+                <li>
+                  Open the <Link href="/kitchen" className="font-medium text-basil underline-offset-2 hover:underline">kitchen screen</Link> in a second window.
+                </li>
+                <li>
+                  On the <Link href={`/r/${r.slug}`} className="font-medium text-basil underline-offset-2 hover:underline">order page</Link>, tap the first example: dinner for someone with a sesame allergy.
+                </li>
+                <li>Approve the hold in PayPal with the sandbox buyer below. You are not charged.</li>
+                <li>In the kitchen, pick the swaps the AI suggests and nod. Watch PayPal capture the lower amount, or decline and watch the hold disappear.</li>
+              </ol>
+            </div>
+            <div className="rounded-2xl bg-cream p-4 text-sm">
+              <div className="font-medium">PayPal sandbox buyer</div>
+              {process.env.SANDBOX_BUYER_EMAIL ? (
+                <div className="mt-2 space-y-1 font-mono text-xs">
+                  <div>Email: {process.env.SANDBOX_BUYER_EMAIL}</div>
+                  <div>Password: {process.env.SANDBOX_BUYER_PASSWORD}</div>
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-muted">Shown here once configured. Any PayPal sandbox personal account works.</div>
+              )}
+              <div className="mt-3 text-xs text-muted">Test accounts on PayPal&rsquo;s sandbox hold no real money.</div>
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-4 py-8 md:grid-cols-4">
           {STEPS.map((s) => (
             <div key={s.n} className="rounded-2xl border border-line bg-paper p-5">
