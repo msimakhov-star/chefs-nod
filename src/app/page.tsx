@@ -4,6 +4,7 @@ import { restaurants } from "@/lib/db";
 import { isSimulated } from "@/lib/paypal";
 import { Brand, SandboxBanner } from "@/components/ui";
 import CopyButton from "@/components/CopyButton";
+import FlowDiagram from "@/components/FlowDiagram";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,11 @@ export default async function Home() {
               <div className="mt-3 font-mono text-[11px] text-basil">{s.api}</div>
             </div>
           ))}
+        </section>
+
+        <section className="mb-6 rounded-3xl border border-line bg-paper p-6 sm:p-8">
+          <h2 className="mb-4 font-display text-2xl font-semibold">Who holds the money, step by step</h2>
+          <FlowDiagram />
         </section>
 
         <section className="mt-6 rounded-3xl bg-basil px-6 py-8 text-white sm:px-10">
