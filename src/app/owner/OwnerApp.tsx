@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry, themeQuartz, type ColDef } from "ag-grid-community";
 import { ALLERGENS, allergenLabel, type AllergenId } from "@/lib/allergens";
@@ -10,8 +11,10 @@ import { AllergenChip, Brand, gbp, StatusBadge } from "@/components/ui";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+const Analytics = dynamic(() => import("./studio/Analytics"), { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-paper" /> });
+
 type OOrder = Order & { authorizedAt: string | null; webhooks: number };
-type Tab = "ledger" | "menu" | "insights" | "settings";
+type Tab = "ledger" | "analytics" | "menu" | "insights" | "settings";
 
 const gridTheme = themeQuartz.withParams({
   fontFamily: "var(--font-inter)",
@@ -50,8 +53,9 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
           {(
             [
               ["ledger", "Orders & money"],
+              ["analytics", "Analytics"],
               ["menu", `Menu & allergens${drafts ? ` (${drafts})` : ""}`],
-              ["insights", "Insights"],
+              ["insights", "Ask & insights"],
               ["settings", "Kitchen settings"],
             ] as [Tab, string][]
           ).map(([k, label]) => (
@@ -65,6 +69,7 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
         </Link>
       </header>
       {tab === "ledger" && <Ledger orders={orders} onChange={load} />}
+      {tab === "analytics" && <Analytics orders={orders} menu={menu} />}
       {tab === "menu" && <MenuStudio menu={menu} setMenu={setMenu} reload={reloadMenu} aiName={aiName} />}
       {tab === "insights" && <Insights orders={orders} aiName={aiName} />}
       {tab === "settings" && <Settings restaurant={restaurant} />}
