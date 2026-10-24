@@ -126,6 +126,43 @@ export async function createHeldOrder(order: Order, restaurant: Restaurant, base
   return { paypalOrderId: result.id, approvalUrl };
 }
 
+/** Replay/demo only: hold money on one of PayPal's published sandbox test cards, so no buyer login is needed. */
+export async function createTestCardHold(order: Order, restaurant: Restaurant) {
+  const currency = order.currency;
+  const itemTotal = order.items.reduce((s, i) => s + i.unitPriceMinor * i.qty, 0);
+  if (isSimulated()) return { paypalOrderId: `SIM-${order.id.slice(-8).toUpperCase()}`, authorizationId: `SIMAUTH-${order.id.slice(-8).toUpperCase()}` };
+  const result = await call("Create test-card order", () =>
+    sdk().orders.createOrder({
+      paypalRequestId: `${order.id}-card`,
+      prefer: "return=representation",
+      body: {
+        intent: CheckoutPaymentIntent.Authorize,
+        purchaseUnits: [
+          {
+            referenceId: order.id,
+            customId: order.id,
+            invoiceId: `CN-${order.id}`,
+            description: `${restaurant.name}: held until the chef signs off (replay, sandbox test card)`,
+            amount: { ...money(itemTotal, currency), breakdown: { itemTotal: money(itemTotal, currency) } },
+            items: order.items.map((i) => ({ name: `${i.dishName} (for ${i.forPerson})`.slice(0, 127), unitAmount: money(i.unitPriceMinor, currency), quantity: String(i.qty), sku: i.dishId })),
+          },
+        ],
+        paymentSource: {
+          card: {
+            name: order.dinerName,
+            number: "4005519200000004", // PayPal sandbox test Visa, https://developer.paypal.com/tools/sandbox/card-testing/
+            expiry: "2030-12",
+            securityCode: "123",
+          },
+        },
+      },
+    }),
+  );
+  const auth = result.purchaseUnits?.[0]?.payments?.authorizations?.[0];
+  if (!result.id || !auth?.id) throw new PayPalFailure("Test-card order returned no authorization", 500, result);
+  return { paypalOrderId: result.id, authorizationId: auth.id };
+}
+
 /** After the diner approves in PayPal: place the hold. Nothing is charged yet. */
 export async function authorizeHeldOrder(order: Order) {
   if (isSimulated()) return { authorizationId: `SIMAUTH-${order.id.slice(-8).toUpperCase()}`, status: "CREATED", expiresAt: null as string | null };

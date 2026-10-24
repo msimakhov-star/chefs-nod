@@ -1,7 +1,7 @@
 import { dishes, events, newId, orders, restaurants } from "./db";
 import { allergenStatement, findConflicts, risk } from "./conflicts";
 import { kitchenCheck, translate } from "./agents";
-import { authorizeHeldOrder, captureHold, createHeldOrder, refundCapture, voidHold, PayPalFailure } from "./paypal";
+import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, refundCapture, voidHold, PayPalFailure } from "./paypal";
 import { publish } from "./bus";
 import type { ChefDecision, Order, OrderItem, Person } from "./types";
 import type { AllergenId } from "./allergens";
@@ -65,6 +65,17 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   const conflicts = findConflicts(items, party, dishById);
   const statement = allergenStatement(items, dishById);
   order.check = await kitchenCheck(order, conflicts, menu, restaurant, statement, risk(conflicts, party));
+
+  if (input.channel === "replay") {
+    const pp = await createTestCardHold(order, restaurant);
+    order.paypalOrderId = pp.paypalOrderId;
+    order.authorizationId = pp.authorizationId;
+    order.status = "awaiting_chef";
+    orders.save(order);
+    log(order, "created", `Replay order from ${order.dinerName} for ${fmt(order.authorizedMinor)} (PayPal sandbox test card).`, { conflicts, statement });
+    log(order, "authorized", `PayPal is holding ${fmt(order.authorizedMinor)} (authorization ${pp.authorizationId}). Waiting for the chef.`);
+    return order;
+  }
 
   const pp = await createHeldOrder(order, restaurant, baseUrl);
   order.paypalOrderId = pp.paypalOrderId;

@@ -460,6 +460,35 @@ function Settings({ restaurant }: { restaurant: Restaurant }) {
       <button onClick={save} className="rounded-full bg-basil px-5 py-2 text-sm font-medium text-white">
         {saved ? "Saved" : "Save"}
       </button>
+      <DemoTools />
+    </div>
+  );
+}
+
+function DemoTools() {
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+  async function run(count: number, decide: boolean, label: string) {
+    setBusy(label);
+    setMsg("");
+    const res = await fetch("/api/demo/replay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ count, decide }) });
+    const d = await res.json();
+    setBusy("");
+    setMsg(res.ok ? `${d.orders.length} orders created on PayPal sandbox test cards${decide ? " and decided" : ", waiting on the kitchen screen"}.` : d.error);
+  }
+  return (
+    <div className="border-t border-line pt-5">
+      <div className="font-medium">Demo: Friday service</div>
+      <p className="mb-3 text-sm text-muted">Creates realistic allergy orders whose money is really held in the PayPal sandbox, using PayPal&rsquo;s published test card. Labelled as replay orders everywhere.</p>
+      <div className="flex flex-wrap gap-2">
+        <button disabled={!!busy} onClick={() => run(6, false, "rush")} className="rounded-full border border-basil px-4 py-2 text-sm text-basil disabled:opacity-40">
+          {busy === "rush" ? "Creating…" : "Send 6 orders to the kitchen"}
+        </button>
+        <button disabled={!!busy} onClick={() => run(12, true, "history")} className="rounded-full border border-line px-4 py-2 text-sm disabled:opacity-40">
+          {busy === "history" ? "Creating…" : "Fill a week of history (12 decided orders)"}
+        </button>
+      </div>
+      {msg && <div className="mt-2 text-sm text-muted">{msg}</div>}
     </div>
   );
 }
