@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --color-cream: #fbf7f0;
+  --color-paper: #ffffff;
+  --color-ink: #1c1917;
+  --color-muted: #6b6359;
+  --color-line: #e8e0d4;
+  --color-basil: #1f5a3d;
+  --color-basil-dark: #163f2b;
+  --color-basil-soft: #e4f0e8;
+  --color-saffron: #d98a1c;
+  --color-saffron-soft: #fdf1dc;
+  --color-chili: #b42318;
+  --color-chili-soft: #fde8e6;
+  --color-pp-blue: #003087;
+  --color-pp-sky: #0070e0;
+  --color-pp-gold: #ffc439;
+}
+
+html,
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+}
+
+.kitchen {
+  background: #12100e;
+  color: #f5efe6;
+}
+
+@keyframes arrive {
+  from { transform: translateY(-12px) scale(0.98); opacity: 0; box-shadow: 0 0 0 6px rgba(217, 138, 28, 0.6); }
+  to { transform: none; opacity: 1; }
+}
+.arrive { animation: arrive 0.5s ease-out; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(217, 138, 28, 0.55); }
+  70% { box-shadow: 0 0 0 12px rgba(217, 138, 28, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 138, 28, 0); }
+}
+.pulse-ring { animation: pulse-ring 1.8s infinite; }
+
+@media print {
+  .no-print { display: none !important; }
+  html, body { background: #fff; }
+}
