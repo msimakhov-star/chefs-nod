@@ -10,14 +10,14 @@ type Msg = { role: "user" | "assistant"; content: string };
 type Line = { key: string; dishId: string; qty: number; forPerson: string };
 
 const LANGS = [
-  { code: "en-GB", label: "English" },
-  { code: "ru-RU", label: "Русский" },
-  { code: "es-ES", label: "Español" },
-  { code: "fr-FR", label: "Français" },
-  { code: "pl-PL", label: "Polski" },
-  { code: "zh-CN", label: "中文" },
-  { code: "ar-SA", label: "العربية" },
-  { code: "hi-IN", label: "हिन्दी" },
+  { code: "en-GB", label: "EN", name: "English" },
+  { code: "ru-RU", label: "RU", name: "Русский" },
+  { code: "es-ES", label: "ES", name: "Español" },
+  { code: "fr-FR", label: "FR", name: "Français" },
+  { code: "pl-PL", label: "PL", name: "Polski" },
+  { code: "zh-CN", label: "中文", name: "中文" },
+  { code: "ar-SA", label: "AR", name: "العربية" },
+  { code: "hi-IN", label: "HI", name: "हिन्दी" },
 ];
 
 const EXAMPLES = [
@@ -143,7 +143,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-10 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3 py-5">
         <Brand sub="Allergy orders the chef signs off before you pay" />
-        <div className="text-right">
+        <div className="sm:text-right">
           <div className="font-display text-lg font-semibold">{restaurant.name}</div>
           <div className="text-xs text-muted">{restaurant.city} · collection and delivery</div>
         </div>
@@ -192,9 +192,9 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                 }}
                 className="flex items-center gap-2 border-t border-line p-3"
               >
-                <select value={speechLang} onChange={(e) => setSpeechLang(e.target.value)} className="rounded-lg border border-line bg-cream px-2 py-2 text-xs" aria-label="Voice language">
+                <select value={speechLang} onChange={(e) => setSpeechLang(e.target.value)} className="shrink-0 rounded-lg border border-line bg-cream px-1.5 py-2 text-xs" aria-label="Voice language" title="Language for voice input">
                   {LANGS.map((l) => (
-                    <option key={l.code} value={l.code}>
+                    <option key={l.code} value={l.code} title={l.name}>
                       {l.label}
                     </option>
                   ))}
@@ -280,7 +280,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
             </div>
           </div>
 
-          <div className="rounded-2xl border border-line bg-paper p-5 shadow-sm">
+          <div id="basket" className="scroll-mt-4 rounded-2xl border border-line bg-paper p-5 shadow-sm">
             <h2 className="mb-3 font-display text-lg font-semibold">Basket</h2>
             {lines.length === 0 ? (
               <p className="text-sm text-muted">Empty. Ask the assistant, or add dishes from the menu.</p>
@@ -366,6 +366,15 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
           {error && <div className="rounded-xl bg-chili-soft px-4 py-3 text-sm text-chili">{error}</div>}
         </section>
       </div>
+      {lines.length > 0 && (
+        <a href="#basket" className="fixed inset-x-4 bottom-4 z-10 flex items-center justify-between rounded-full bg-basil px-5 py-3 text-white shadow-lg lg:hidden">
+          <span className="text-sm">
+            {lines.length} item{lines.length > 1 ? "s" : ""}
+            {conflicts.length > 0 && ` · ${conflicts.length} for the chef to check`}
+          </span>
+          <span className="font-semibold">{gbp(total)} · Review</span>
+        </a>
+      )}
     </div>
   );
 }

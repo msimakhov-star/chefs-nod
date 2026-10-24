@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { dishes, newId, restaurants } from "@/lib/db";
 import { extractMenu } from "@/lib/agents";
-import { fail } from "@/lib/http";
+import { fail, rateLimit } from "@/lib/http";
 import type { Dish } from "@/lib/types";
 import type { AllergenId } from "@/lib/allergens";
 import { deriveContains } from "@/lib/dish";
@@ -10,6 +10,8 @@ export const maxDuration = 120;
 
 // Menu photo in, DRAFT allergen rows out. Nothing here is visible to diners until the owner confirms each row.
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "import", 6, 3_600_000);
+  if (limited) return limited;
   try {
     const form = await req.formData();
     const file = form.get("menu");

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { dishes, orders, restaurants } from "@/lib/db";
 import { menuRiskReport } from "@/lib/agents";
-import { fail } from "@/lib/http";
+import { fail, rateLimit } from "@/lib/http";
 
-export async function POST() {
+export async function POST(req: Request) {
+  const limited = rateLimit(req, "report", 10, 3_600_000);
+  if (limited) return limited;
   try {
     const r = restaurants.first()!;
     const menu = dishes.list(r.id);

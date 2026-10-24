@@ -40,6 +40,8 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
     return () => es.close();
   }, [load, initial.id]);
 
+  const [cancelled, setCancelled] = useState(false);
+  useEffect(() => setCancelled(new URLSearchParams(window.location.search).has("cancelled")), []);
   const idx = stepIndex(order);
   const final = order.status === "captured" ? "good" : ["voided", "expired", "failed"].includes(order.status) ? "released" : null;
   const swapLabel = (itemId: string, swapId: string) => menu.find((d) => d.id === order.items.find((i) => i.id === itemId)?.dishId)?.swaps.find((s) => s.id === swapId)?.label;
@@ -66,6 +68,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
         </h1>
         {message && <p className="mt-3 text-lg leading-relaxed text-ink/80">{message}</p>}
 
+        {order.status === "awaiting_payment" && cancelled && <p className="mt-3 rounded-xl bg-saffron-soft px-4 py-3 text-sm text-[#8a5a10]">You left PayPal without approving, so nothing is held. You can try again.</p>}
         {order.status === "awaiting_payment" && order.approvalUrl && (
           <a href={order.approvalUrl} className="mt-5 inline-block rounded-full bg-pp-gold px-6 py-3 font-semibold text-pp-blue">
             Open PayPal to approve the hold

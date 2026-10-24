@@ -46,7 +46,7 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
     <div className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-4 py-5">
         <Brand sub={`Owner · ${restaurant.name}`} />
-        <nav className="flex gap-1 rounded-full border border-line bg-paper p-1 text-sm">
+        <nav className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-paper p-1 text-sm">
           {(
             [
               ["ledger", "Orders & money"],
@@ -55,7 +55,7 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
               ["settings", "Kitchen settings"],
             ] as [Tab, string][]
           ).map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-basil text-white" : "text-muted hover:text-ink"}`}>
+            <button key={k} onClick={() => setTab(k)} className={`whitespace-nowrap rounded-full px-4 py-1.5 ${tab === k ? "bg-basil text-white" : "text-muted hover:text-ink"}`}>
               {label}
             </button>
           ))}
@@ -104,7 +104,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Orders" value={String(orders.length)} />
         <Kpi label="Allergy orders" value={String(allergy.length)} />
         <Kpi label="Avg time to nod" value={avgNod == null ? "–" : `${Math.floor(avgNod / 60)}m ${avgNod % 60}s`} />
