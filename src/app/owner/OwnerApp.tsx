@@ -69,7 +69,7 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
         </Link>
       </header>
       {tab === "ledger" && <Ledger orders={orders} onChange={load} />}
-      {tab === "analytics" && <Analytics orders={orders} menu={menu} />}
+      {tab === "analytics" && <Analytics orders={orders} menu={menu} aiEnabled={aiName !== "not configured"} />}
       {tab === "menu" && <MenuStudio menu={menu} setMenu={setMenu} reload={reloadMenu} aiName={aiName} />}
       {tab === "insights" && <Insights orders={orders} aiName={aiName} />}
       {tab === "settings" && <Settings restaurant={restaurant} />}
