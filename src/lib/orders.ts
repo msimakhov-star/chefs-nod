@@ -109,6 +109,12 @@ export async function onPayerApproved(orderId: string) {
     orders.save(order);
     log(order, "authorized", `Diner approved. PayPal is holding ${fmt(order.authorizedMinor)} (authorization ${auth.authorizationId}). Waiting for the chef.`, auth);
   } catch (e) {
+    // Not approved yet (e.g. the diner came back without approving): keep waiting instead of failing the order.
+    const issue = e instanceof PayPalFailure ? JSON.stringify(e.detail ?? "") : "";
+    if (/ORDER_NOT_APPROVED|PAYER_ACTION_REQUIRED/.test(issue)) {
+      log(order, "info", "PayPal says the diner has not approved yet. Nothing is held.");
+      return order;
+    }
     order.status = "failed";
     orders.save(order);
     log(order, "error", e instanceof PayPalFailure ? `${e.message}${e.debugId ? ` (debug id ${e.debugId})` : ""}` : String(e));
