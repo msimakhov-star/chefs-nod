@@ -5,7 +5,9 @@ import { allergensAfter } from "@/lib/dish";
 import type { Dish, Order } from "@/lib/types";
 
 type FieldSpec = [id: string, name: string, format: AgFormat, hide?: boolean];
-const fields = (specs: FieldSpec[]): AgFieldDefinition[] => specs.map(([id, name, format, hide]) => ({ id, name, format, ...(hide && { hide }) }));
+const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+const fields = (specs: FieldSpec[]): AgFieldDefinition[] =>
+  specs.map(([id, name, format, hide]) => ({ id, name, format, ...(hide && { hide }), ...(format === "currencyFormat" && { formatOptions: { format: GBP } }) }));
 const manyToOne = (id: string, source: string, target: string): AgRelationDefinition => {
   const [st, sf] = source.split(".");
   const [tt, tf] = target.split(".");

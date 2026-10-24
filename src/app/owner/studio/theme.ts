@@ -1,7 +1,8 @@
 // AG Studio theme built from Chef's Nod's design tokens (see globals.css).
 import { studioTheme } from "ag-studio";
 
-const PALETTE = ["#1f5a3d", "#d98a1c", "#b42318", "#6fae86", "#0070e0", "#8a5a10", "#9b8f80", "#163f2b", "#e9b872", "#5b7f95"];
+// Distinct hues with no red, so no series reads as "bad" by accident.
+const PALETTE = ["#1f5a3d", "#d98a1c", "#5b7f95", "#8e6c9e", "#6fae86", "#c9a227", "#3f8f8a", "#9b8f80", "#163f2b", "#e9b872"];
 
 export const chefsNodTheme = studioTheme.withParams({
   fontFamily: "var(--font-inter), system-ui, sans-serif",

@@ -102,4 +102,4 @@ const allergies: AgPageState = {
   },
 };
 
-export const ownerReport: AgReportState = { selectedPageId: money.id, pages: [money, allergies] };
+export const ownerReport: AgReportState = { selectedPageId: money.id, pages: [money, allergies], panels: { filters: { collapsed: true } } };
