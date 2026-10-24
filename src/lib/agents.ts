@@ -24,8 +24,8 @@ const menuForPrompt = (dishes: Dish[]) =>
 
 // ---------- 1. Kitchen sign-off agent: writes the question the chef has to answer ----------
 
-export async function kitchenCheck(order: Order, conflicts: Conflict[], dishes: Dish[], restaurant: Restaurant, statement: string[], riskLevel: KitchenCheck["risk"]): Promise<KitchenCheck> {
-  const fallback: KitchenCheck = {
+export function rulesCheck(order: Order, conflicts: Conflict[], statement: string[], riskLevel: KitchenCheck["risk"]): KitchenCheck {
+  return {
     risk: riskLevel,
     headline: conflicts.length ? `Allergy check: ${[...new Set(conflicts.flatMap((c) => [...c.contains, ...c.mayContain]))].map(allergenLabel).join(", ")}` : order.party.some((p) => p.allergies.length) ? "Allergy order: please confirm" : "Standard order",
     questions: conflicts.map((c) => ({
@@ -35,6 +35,10 @@ export async function kitchenCheck(order: Order, conflicts: Conflict[], dishes: 
     })),
     dinerSummary: statement.join(" "),
   };
+}
+
+export async function kitchenCheck(order: Order, conflicts: Conflict[], dishes: Dish[], restaurant: Restaurant, statement: string[], riskLevel: KitchenCheck["risk"]): Promise<KitchenCheck> {
+  const fallback = rulesCheck(order, conflicts, statement, riskLevel);
   try {
     const { output } = await generateText({
       model: aiProvider().fast,

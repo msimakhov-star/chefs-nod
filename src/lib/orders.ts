@@ -1,6 +1,6 @@
 import { dishes, events, newId, orders, restaurants } from "./db";
 import { allergenStatement, findConflicts, risk } from "./conflicts";
-import { kitchenCheck, translate } from "./agents";
+import { kitchenCheck, rulesCheck, translate } from "./agents";
 import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, refundCapture, voidHold, PayPalFailure } from "./paypal";
 import { publish } from "./bus";
 import type { ChefDecision, Order, OrderItem, Person } from "./types";
@@ -64,7 +64,17 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
 
   const conflicts = findConflicts(items, party, dishById);
   const statement = allergenStatement(items, dishById);
-  order.check = await kitchenCheck(order, conflicts, menu, restaurant, statement, risk(conflicts, party));
+  // The rules-only ticket is instant; the AI-written questions replace it in the background.
+  const riskLevel = risk(conflicts, party);
+  order.check = rulesCheck(order, conflicts, statement, riskLevel);
+  const refine = () =>
+    kitchenCheck(order, conflicts, menu, restaurant, statement, riskLevel).then((check) => {
+      const latest = orders.get(order.id);
+      if (!latest) return;
+      latest.check = check;
+      orders.save(latest);
+      publish(latest.restaurantId, latest.id, "check");
+    });
 
   if (input.channel === "replay") {
     const pp = await createTestCardHold(order, restaurant);
@@ -74,6 +84,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
     orders.save(order);
     log(order, "created", `Replay order from ${order.dinerName} for ${fmt(order.authorizedMinor)} (PayPal sandbox test card).`, { conflicts, statement });
     log(order, "authorized", `PayPal is holding ${fmt(order.authorizedMinor)} (authorization ${pp.authorizationId}). Waiting for the chef.`);
+    void refine().catch((e) => console.error("kitchen check refine failed", e));
     return order;
   }
 
@@ -82,6 +93,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   order.approvalUrl = pp.approvalUrl;
   orders.save(order);
   log(order, "created", `${order.channel === "agent" ? `${order.agentName ?? "An AI agent"} placed` : `${order.dinerName} placed`} an order for ${fmt(order.authorizedMinor)}. PayPal order ${pp.paypalOrderId} created with intent AUTHORIZE: nothing is charged yet.`, { conflicts, statement });
+  void refine().catch((e) => console.error("kitchen check refine failed", e));
   return order;
 }
 
