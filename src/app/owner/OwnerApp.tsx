@@ -79,8 +79,9 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
   const allergy = orders.filter((o) => o.party.some((p) => p.allergies.length));
   const decided = orders.filter((o) => o.decision);
   const captured = orders.filter((o) => o.capturedMinor != null);
-  const heldTotal = orders.filter((o) => o.authorizationId).reduce((s, o) => s + o.authorizedMinor, 0);
+  const heldNow = orders.filter((o) => o.status === "awaiting_chef").reduce((s, o) => s + o.authorizedMinor, 0);
   const capturedTotal = captured.reduce((s, o) => s + (o.capturedMinor ?? 0), 0);
+  const released = orders.filter((o) => o.authorizationId && ["captured", "voided", "expired", "refunded"].includes(o.status)).reduce((s, o) => s + o.authorizedMinor - (o.capturedMinor ?? 0), 0);
   const nodTimes = decided.filter((o) => o.authorizedAt).map((o) => (Date.parse(o.decision!.decidedAt) - Date.parse(o.authorizedAt!)) / 1000);
   const avgNod = nodTimes.length ? Math.round(nodTimes.reduce((a, b) => a + b, 0) / nodTimes.length) : null;
 
@@ -94,7 +95,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
       { headerName: "Chef", width: 150, valueGetter: (p) => (p.data?.decision ? p.data.decision.outcome.replaceAll("_", " ") : "") },
       { headerName: "Held", field: "authorizedMinor", width: 95, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Charged", field: "capturedMinor", width: 100, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Released", width: 100, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Released", width: 100, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
       { headerName: "Nod time", width: 100, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
       { headerName: "PayPal capture", field: "captureId", width: 170, cellClass: "font-mono text-xs" },
     ],
@@ -107,9 +108,9 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
         <Kpi label="Orders" value={String(orders.length)} />
         <Kpi label="Allergy orders" value={String(allergy.length)} />
         <Kpi label="Avg time to nod" value={avgNod == null ? "–" : `${Math.floor(avgNod / 60)}m ${avgNod % 60}s`} />
-        <Kpi label="Held in PayPal" value={gbp(heldTotal)} />
+        <Kpi label="Held now, awaiting chef" value={gbp(heldNow)} />
         <Kpi label="Captured" value={gbp(capturedTotal)} accent />
-        <Kpi label="Released to diners" value={gbp(heldTotal - capturedTotal)} />
+        <Kpi label="Released to diners" value={gbp(released)} />
       </div>
       <div className="h-[520px] overflow-hidden rounded-2xl border border-line bg-paper">
         <AgGridReact<OOrder> theme={gridTheme} rowData={orders} columnDefs={cols} getRowId={(p) => p.data.id} onRowClicked={(e) => setSelected(e.data ?? null)} animateRows rowSelection={{ mode: "singleRow", enableClickSelection: true, checkboxes: false }} />

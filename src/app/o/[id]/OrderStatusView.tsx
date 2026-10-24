@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { allergenLabel } from "@/lib/allergens";
+import { allergensAfter } from "@/lib/dish";
 import type { Dish, Order, OrderEvent, Restaurant } from "@/lib/types";
 import { Brand, gbp, StatusBadge } from "@/components/ui";
 
@@ -93,10 +94,18 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
         <div className="rounded-2xl border border-line bg-paper p-5">
           <h2 className="mb-3 font-display text-lg font-semibold">Your order</h2>
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {order.party.map((p) => (
+              <span key={p.name}>
+                <span className="font-medium">{p.name}</span>: {p.allergies.length ? p.allergies.map(allergenLabel).join(", ") : "no allergies"}
+              </span>
+            ))}
+          </div>
           <ul className="space-y-3 text-sm">
             {order.items.map((i) => {
               const d = menu.find((x) => x.id === i.dishId);
-              const sw = order.decision?.appliedSwaps.find((a) => a.itemId === i.id);
+              const sws = order.decision?.appliedSwaps.filter((a) => a.itemId === i.id) ?? [];
+              const after = d ? allergensAfter(d, sws.map((x) => x.swapId)) : [];
               return (
                 <li key={i.id}>
                   <div className="flex justify-between">
@@ -106,10 +115,15 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
                     </span>
                     <span>{gbp(i.unitPriceMinor * i.qty)}</span>
                   </div>
-                  {sw && <div className="mt-0.5 text-basil">✓ Chef: {swapLabel(sw.itemId, sw.swapId)}</div>}
+                  {sws.map((sw) => (
+                    <div key={sw.swapId} className="mt-0.5 text-basil">
+                      ✓ Chef: {swapLabel(sw.itemId, sw.swapId)}
+                    </div>
+                  ))}
                   {d && (
                     <div className="mt-0.5 text-xs text-muted">
-                      Contains {d.contains.map(allergenLabel).join(", ") || "none of the 14 allergens"}
+                      {sws.length ? "Now contains " : "Contains "}
+                      {after.map(allergenLabel).join(", ") || "none of the 14 allergens"}
                       {d.mayContain.length > 0 && `; may contain ${d.mayContain.map(allergenLabel).join(", ")}`}
                     </div>
                   )}

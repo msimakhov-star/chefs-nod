@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { dishes, orders, restaurants } from "@/lib/db";
 import { allergenLabel } from "@/lib/allergens";
+import { allergensAfter } from "@/lib/dish";
 import { gbp, Logo } from "@/components/ui";
 import PrintButton from "./PrintButton";
 
@@ -18,11 +19,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const h = await headers();
   const origin = process.env.PUBLIC_URL || `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
   const qr = await QRCode.toString(`${origin}/o/${o.id}`, { type: "svg", margin: 0, width: 120 });
-  const swap = (itemId: string) => {
-    const a = o.decision?.appliedSwaps.find((x) => x.itemId === itemId);
-    if (!a) return null;
-    return menu.find((d) => d.id === o.items.find((i) => i.id === itemId)?.dishId)?.swaps.find((s) => s.id === a.swapId)?.label;
-  };
+  const swapsFor = (itemId: string) => (o.decision?.appliedSwaps ?? []).filter((x) => x.itemId === itemId).map((x) => x.swapId);
   const decided = o.decision ? new Date(o.decision.decidedAt) : null;
 
   return (
@@ -55,16 +52,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <div className="font-bold">ITEMS</div>
         {o.items.map((i) => {
           const d = menu.find((x) => x.id === i.dishId);
-          const s = swap(i.id);
+          const ids = swapsFor(i.id);
           return (
             <div key={i.id} className="mt-1.5">
               <div>
                 {i.qty}× {i.dishName} for {i.forPerson}
               </div>
-              {s && <div className="font-bold">  CHANGED: {s}</div>}
+              {d &&
+                ids.map((id) => (
+                  <div key={id} className="font-bold">
+                    {"  "}CHANGED: {d.swaps.find((s) => s.id === id)?.label}
+                  </div>
+                ))}
               {d && (
                 <div className="text-[11px]">
-                  {"  "}Contains: {d.contains.map(allergenLabel).join(", ") || "none of the 14"}
+                  {"  "}Contains{ids.length ? " (after changes)" : ""}: {allergensAfter(d, ids).map(allergenLabel).join(", ") || "none of the 14"}
                   {d.mayContain.length ? `; may contain: ${d.mayContain.map(allergenLabel).join(", ")}` : ""}
                 </div>
               )}

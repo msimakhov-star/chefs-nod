@@ -43,7 +43,9 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   const recRef = useRef<{ stop: () => void } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, thinking]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, thinking]);
 
   const dishById = (id: string) => menu.find((d) => d.id === id) ?? null;
   const items: OrderItem[] = useMemo(
@@ -316,7 +318,10 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                           {c.contains.length > 0 && <>Contains {c.contains.map(allergenLabel).join(", ")}. </>}
                           {c.mayContain.length > 0 && <>May contain {c.mayContain.map(allergenLabel).join(", ")}. </>}
                           {c.fixingSwapIds.length ? (
-                            <>The kitchen can offer: {c.fixingSwapIds.map((s) => d.swaps.find((w) => w.id === s)?.label).join(" or ")}. The chef decides.</>
+                            <>
+                              {c.resolvable ? "The kitchen can offer: " : "The kitchen can reduce it with: "}
+                              {c.fixingSwapIds.map((s) => d.swaps.find((w) => w.id === s)?.label).join(" + ")}. The chef decides.
+                            </>
                           ) : (
                             <>The chef will decide if this can be made for {c.person}.</>
                           )}
