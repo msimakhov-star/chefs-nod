@@ -132,7 +132,14 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
                     <span>{o.dinerName}</span>
                     <span className={o.status === "captured" ? "text-[#7fd1a0]" : "text-white/65"}>{o.status === "captured" ? `charged ${gbp(o.capturedMinor)}` : o.status === "expired" ? "expired, released" : o.status === "voided" ? "declined, released" : o.status}</span>
                   </div>
-                  {o.decision?.outcome === "approved_with_changes" && <div className="text-xs text-white/60">changed · held {gbp(o.authorizedMinor)}</div>}
+                  <div className="flex justify-between text-xs text-white/60">
+                    <span>{o.decision?.outcome === "approved_with_changes" ? `changed · held ${gbp(o.authorizedMinor)}` : o.channel === "agent" ? `via ${o.agentName}` : ""}</span>
+                    {o.status === "captured" && (
+                      <a href={`/o/${o.id}/record`} target="_blank" className="underline-offset-2 hover:text-white hover:underline">
+                        Print bag record
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

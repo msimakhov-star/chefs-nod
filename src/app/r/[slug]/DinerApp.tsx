@@ -47,6 +47,20 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
+  // Remember who eats with you and their allergies, on this device only.
+  const PARTY_KEY = "chefsnod.party";
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PARTY_KEY) || "null");
+      if (Array.isArray(saved) && saved.length) setParty(saved);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      if (party.some((p) => p.allergies.length || p.name !== "Me")) localStorage.setItem(PARTY_KEY, JSON.stringify(party));
+    } catch {}
+  }, [party]);
+
   const dishById = (id: string) => menu.find((d) => d.id === id) ?? null;
   const items: OrderItem[] = useMemo(
     () => lines.map((l) => ({ id: l.key, dishId: l.dishId, dishName: dishById(l.dishId)?.name ?? "", forPerson: l.forPerson, qty: l.qty, unitPriceMinor: dishById(l.dishId)?.priceMinor ?? 0 })),
@@ -260,6 +274,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                 + Add person
               </button>
             </div>
+            <p className="-mt-1 mb-3 text-xs text-muted">Saved on this device for next time. Nothing is shared until you order.</p>
             <div className="space-y-3">
               {party.map((p, idx) => (
                 <PersonRow
