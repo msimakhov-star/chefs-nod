@@ -331,6 +331,7 @@ function Insights({ orders, aiName }: { orders: OOrder[]; aiName: string }) {
   }
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <Copilot aiName={aiName} />
       <div className="rounded-2xl border border-line bg-paper p-5">
         <h3 className="mb-4 font-display text-lg font-semibold">Allergies your diners declare</h3>
         {byAllergen.length === 0 && <p className="text-sm text-muted">No allergy orders yet.</p>}
@@ -368,6 +369,65 @@ function Insights({ orders, aiName }: { orders: OOrder[]; aiName: string }) {
         <p className="mb-3 text-sm text-muted">{aiName} looks at which dishes force sign-offs, edits and declines, and suggests one recipe, swap or wording change for each.</p>
         <div className="whitespace-pre-wrap rounded-xl bg-cream p-4 text-sm leading-relaxed">{report || "No report yet."}</div>
       </div>
+    </div>
+  );
+}
+
+function Copilot({ aiName }: { aiName: string }) {
+  const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string; tools?: string[] }[]>([]);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const SUGGEST = ["How much did PayPal release back to diners this week, and why?", "Which orders are still held, and for how long?", "Cross-check our captured orders against PayPal's transaction records."];
+  async function ask(text: string) {
+    if (!text.trim() || busy) return;
+    const history = msgs.map(({ role, content }) => ({ role, content }));
+    setMsgs((m) => [...m, { role: "user", content: text }]);
+    setQ("");
+    setBusy(true);
+    const res = await fetch("/api/owner/copilot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: text, history }) });
+    const d = await res.json();
+    setMsgs((m) => [...m, { role: "assistant", content: res.ok ? d.answer : d.error, tools: d.toolsUsed }]);
+    setBusy(false);
+  }
+  return (
+    <div className="flex flex-col rounded-2xl border border-line bg-paper p-5 lg:row-span-2">
+      <h3 className="font-display text-lg font-semibold">Ask about your money</h3>
+      <p className="mb-3 text-sm text-muted">{aiName} answers from Chef&rsquo;s Nod&rsquo;s records and PayPal&rsquo;s own MCP server. It can look things up; only you can move money.</p>
+      <div className="flex-1 space-y-3 overflow-y-auto">
+        {msgs.length === 0 &&
+          SUGGEST.map((s) => (
+            <button key={s} onClick={() => ask(s)} className="block w-full rounded-xl border border-line bg-cream px-3 py-2 text-left text-sm hover:border-basil">
+              {s}
+            </button>
+          ))}
+        {msgs.map((m, i) => (
+          <div key={i} className={m.role === "user" ? "text-right" : ""}>
+            <div className={`inline-block max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-left text-sm ${m.role === "user" ? "bg-basil text-white" : "bg-cream"}`}>{m.content}</div>
+            {m.tools && m.tools.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {m.tools.map((t) => (
+                  <span key={t} className={`rounded-full px-2 py-0.5 font-mono text-[10px] ${t.startsWith("chefs_nod") ? "bg-basil-soft text-basil" : "bg-[#e8f1fc] text-pp-blue"}`}>
+                    {t.startsWith("chefs_nod") ? t : `PayPal MCP · ${t}`}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {busy && <div className="w-28 animate-pulse rounded-2xl bg-cream px-3 py-2 text-sm text-muted">Looking it up…</div>}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          ask(q);
+        }}
+        className="mt-3 flex gap-2"
+      >
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about orders, holds, refunds…" className="min-w-0 flex-1 rounded-full border border-line bg-cream px-4 py-2 text-sm outline-none focus:border-basil" />
+        <button disabled={busy || !q.trim()} className="rounded-full bg-basil px-4 py-2 text-sm text-white disabled:opacity-40">
+          Ask
+        </button>
+      </form>
     </div>
   );
 }
