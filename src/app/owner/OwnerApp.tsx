@@ -243,6 +243,20 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
           Import our sample menu
         </button>{" "}
         (<a href="/demo/fennel-room-menu.jpg" target="_blank" className="underline-offset-2 hover:underline">see it</a>)
+        {menu.some((d) => !d.confirmed) && (
+          <>
+            {" · "}
+            <button
+              onClick={async () => {
+                await fetch("/api/demo/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ what: "drafts" }) });
+                await reload();
+              }}
+              className="font-medium text-chili underline-offset-2 hover:underline"
+            >
+              Discard unconfirmed drafts
+            </button>
+          </>
+        )}
       </div>
       {msg && <div className="rounded-xl bg-basil-soft px-4 py-3 text-sm text-basil">{msg}</div>}
 
@@ -500,6 +514,17 @@ function DemoTools() {
         </button>
         <button disabled={!!busy} onClick={() => run(12, true, "history")} className="rounded-full border border-line px-4 py-2 text-sm disabled:opacity-40">
           {busy === "history" ? "Creating…" : "Fill a week of history (12 decided orders)"}
+        </button>
+        <button
+          disabled={!!busy}
+          onClick={async () => {
+            if (!confirm("Reset the demo: restore the sample menu and clear all orders?")) return;
+            await fetch("/api/demo/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+            location.reload();
+          }}
+          className="rounded-full border border-line px-4 py-2 text-sm text-muted disabled:opacity-40"
+        >
+          Reset demo
         </button>
       </div>
       {msg && <div className="mt-2 text-sm text-muted">{msg}</div>}
