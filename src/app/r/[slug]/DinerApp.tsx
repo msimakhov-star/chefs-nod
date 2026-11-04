@@ -40,6 +40,9 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   const [readStatement, setReadStatement] = useState(false);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
+  const [chatError, setChatError] = useState("");
+  const [hideConflicts, setHideConflicts] = useState(false);
+  const aiReady = aiName !== "not configured";
   const recRef = useRef<{ stop: () => void } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +79,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
     setMessages(next);
     setInput("");
     setThinking(true);
-    setError("");
+    setChatError("");
     try {
       const res = await fetch("/api/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: restaurant.slug, messages: next, party }) });
       const data = await res.json();
@@ -86,7 +89,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
       if (data.party?.length) setParty(data.party.map((p: Person) => ({ ...p, notes: p.notes || "" })));
       if (data.items?.length) setLines(data.items.map((i: { dishId: string; qty: number; forPerson: string }, n: number) => ({ key: `l${Date.now()}${n}`, ...i })));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setChatError(e instanceof Error ? e.message : String(e));
       setMessages(next);
     } finally {
       setThinking(false);
@@ -101,7 +104,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
     const W = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
     const Rec = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!Rec) {
-      setError("Voice input needs Chrome or Edge. You can type instead.");
+      setChatError("Voice input needs Chrome or Edge. You can type instead.");
       return;
     }
     const rec = new Rec();
@@ -135,11 +138,14 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   async function pay() {
     setPaying(true);
     setError("");
+    // The kitchen should see a real name, not "Me".
+    const me = dinerName.trim();
+    const named = (n: string) => (n === "Me" && me ? me : n);
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantSlug: restaurant.slug, dinerName: dinerName || party[0]?.name || "Guest", language, party, items: lines.map(({ dishId, qty, forPerson }) => ({ dishId, qty, forPerson })) }),
+        body: JSON.stringify({ restaurantSlug: restaurant.slug, dinerName: dinerName || party[0]?.name || "Guest", language, party: party.map((p) => ({ ...p, name: named(p.name) })), items: lines.map(({ dishId, qty, forPerson }) => ({ dishId, qty, forPerson: named(forPerson) })) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create the PayPal order");
@@ -154,7 +160,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   const byCategory = menu.reduce<Record<string, Dish[]>>((acc, d) => ((acc[d.category] ??= []).push(d), acc), {});
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-10 sm:px-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-24 sm:px-6 lg:pb-10">
       <header className="flex flex-wrap items-center justify-between gap-3 py-5">
         <Brand sub="Allergy orders the chef signs off before you pay" />
         <div className="sm:text-right">
@@ -197,6 +203,14 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                   </div>
                 ))}
                 {thinking && <div className="w-24 animate-pulse rounded-2xl bg-cream px-4 py-2.5 text-sm text-muted">Thinking…</div>}
+                {chatError && (
+                  <div role="alert" className="rounded-xl bg-chili-soft px-4 py-3 text-sm text-chili">
+                    {chatError}{" "}
+                    <button onClick={() => setTab("menu")} className="font-medium underline underline-offset-2">
+                      Browse the menu instead
+                    </button>
+                  </div>
+                )}
                 <div ref={endRef} />
               </div>
               <form
@@ -224,16 +238,33 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                   Send
                 </button>
               </form>
-              <div className="px-4 pb-2 text-[11px] text-muted">Assistant: {aiName}. It only uses the owner-confirmed allergen menu and never promises a dish is safe.</div>
+              <div className="px-4 pb-2 text-[11px] text-muted">{aiReady ? `Assistant: ${aiName}. ` : "The assistant is offline on this server, so browse the menu instead. "}It only uses the owner-confirmed allergen menu and never promises a dish is safe.</div>
             </>
           ) : (
             <div className="flex-1 space-y-6 overflow-y-auto p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                <span>
+                  <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-line bg-cream align-[-1px]" />
+                  contains
+                  <span className="ml-3 mr-1 inline-block h-2.5 w-2.5 rounded-full bg-saffron align-[-1px]" />
+                  may contain
+                  <span className="ml-3 mr-1 inline-block h-2.5 w-2.5 rounded-full bg-chili align-[-1px]" />
+                  matches your party
+                </span>
+                {party.some((p) => p.allergies.length) && (
+                  <label className="flex items-center gap-1.5">
+                    <input type="checkbox" checked={hideConflicts} onChange={(e) => setHideConflicts(e.target.checked)} className="accent-basil" />
+                    Hide dishes with your party&rsquo;s allergens
+                  </label>
+                )}
+              </div>
               {Object.entries(byCategory).map(([cat, list]) => (
                 <div key={cat}>
                   <h3 className="mb-2 font-display text-lg font-semibold">{cat}</h3>
                   <div className="divide-y divide-line">
                     {list.map((d) => {
                       const hits = party.flatMap((p) => p.allergies).filter((a) => d.contains.includes(a));
+                      if (hideConflicts && hits.length) return null;
                       return (
                         <div key={d.id} className="flex items-start justify-between gap-4 py-3">
                           <div className="min-w-0">
@@ -243,9 +274,11 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                               {d.contains.map((a) => (
                                 <AllergenChip key={a} id={a} small tone={hits.includes(a) ? "conflict" : "neutral"} />
                               ))}
-                              {d.mayContain.map((a) => (
-                                <AllergenChip key={a} id={a} small tone="may" />
-                              ))}
+                              {d.mayContain
+                                .filter((a) => !d.contains.includes(a))
+                                .map((a) => (
+                                  <AllergenChip key={a} id={a} small tone="may" />
+                                ))}
                             </div>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -260,7 +293,6 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                   </div>
                 </div>
               ))}
-              <p className="text-xs text-muted">Grey: contains. Amber: may contain (cross-contact). Red: matches someone in your party.</p>
             </div>
           )}
         </section>
@@ -359,7 +391,16 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                   return (
                     <li key={i.id}>
                       <span className="font-medium">{d.name}</span>: contains {d.contains.map(allergenLabel).join(", ") || "none of the 14 allergens"}
-                      {d.mayContain.length > 0 && <>; may contain {d.mayContain.map(allergenLabel).join(", ")}</>}.
+                      {d.mayContain.some((a) => !d.contains.includes(a)) && (
+                        <>
+                          ; may contain{" "}
+                          {d.mayContain
+                            .filter((a) => !d.contains.includes(a))
+                            .map(allergenLabel)
+                            .join(", ")}
+                        </>
+                      )}
+                      .
                     </li>
                   );
                 })}
@@ -375,6 +416,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
               <button onClick={pay} disabled={!readStatement || paying} className="w-full rounded-full bg-pp-gold px-5 py-3.5 text-[15px] font-semibold text-pp-blue shadow-sm transition hover:brightness-95 disabled:opacity-40">
                 {paying ? "Opening PayPal…" : "Approve the hold with PayPal"}
               </button>
+              {!readStatement && <p className="mt-2.5 text-center text-xs font-medium text-chili">Tick the box above to continue.</p>}
               <p className="mt-2.5 text-center text-xs text-muted">You are only charged after the chef confirms. If they change a dish the price can only go down; if they decline, the hold is released.</p>
             </div>
           )}

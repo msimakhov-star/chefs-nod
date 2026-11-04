@@ -43,7 +43,7 @@ const money: AgPageState = {
     },
     ledger: {
       type: "grid",
-      dataMapping: { cols: [{ id: "orders.createdAt" }, { id: "orders.diner" }, { id: "orders.channel" }, { id: "orders.outcome" }, sum("orders.held"), sum("orders.captured"), sum("orders.released"), avg("orders.nodSeconds")] },
+      dataMapping: { cols: [{ id: "orders.ref" }, { id: "orders.createdAt" }, { id: "orders.diner" }, { id: "orders.channel" }, { id: "orders.outcome" }, sum("orders.held"), sum("orders.captured"), sum("orders.released"), avg("orders.nodSeconds")] },
       sort: [{ field: { id: "orders.createdAt" }, direction: "desc" }],
       format: title("Every held order"),
     },
@@ -81,8 +81,8 @@ const allergies: AgPageState = {
     },
     "dish-conflicts": {
       type: "column-chart-stacked",
-      dataMapping: { categoryKey: [{ id: "lines.dish" }], valueKey: [sum("lines.conflict")], legendKey: [{ id: "lines.conflictAllergens" }] },
-      sort: [{ field: sum("lines.conflict"), direction: "desc" }],
+      dataMapping: { categoryKey: [{ id: "conflicts.dish" }], valueKey: [sum("conflicts.one")], legendKey: [{ id: "conflicts.allergen" }] },
+      sort: [{ field: sum("conflicts.one"), direction: "desc" }],
       format: { ...title("Which dishes trigger sign-offs, by allergen"), style: { theme: { common: { legend: { enabled: true } } } } },
     },
     pivot: {

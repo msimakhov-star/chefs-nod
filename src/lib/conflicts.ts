@@ -37,7 +37,7 @@ export function findConflicts(items: OrderItem[], party: Person[], dishById: (id
     const person = party.find((p) => p.name.toLowerCase() === item.forPerson.toLowerCase());
     const allergies = new Set(person?.allergies ?? []);
     const contains = dish.contains.filter((a) => allergies.has(a));
-    const mayContain = dish.mayContain.filter((a) => allergies.has(a));
+    const mayContain = dish.mayContain.filter((a) => allergies.has(a) && !contains.includes(a));
     if (!contains.length && !mayContain.length) continue;
     const plan = contains.length ? planSwaps(dish, allergies) : { swapIds: [], resolvable: true };
     out.push({ itemId: item.id, dishId: dish.id, dishName: dish.name, person: item.forPerson, contains, mayContain, fixingSwapIds: plan.swapIds, resolvable: plan.resolvable });
@@ -50,7 +50,8 @@ export function allergenStatement(items: OrderItem[], dishById: (id: string) => 
   return items.map((i) => {
     const d = dishById(i.dishId);
     const contains = d?.contains.map(allergenLabel).join(", ") || "none of the 14 declared allergens";
-    const may = d?.mayContain.length ? `; may contain ${d.mayContain.map(allergenLabel).join(", ")}` : "";
+    const mayList = d?.mayContain.filter((a) => !d.contains.includes(a)) ?? [];
+    const may = mayList.length ? `; may contain ${mayList.map(allergenLabel).join(", ")}` : "";
     return `${i.dishName} (for ${i.forPerson}): contains ${contains}${may}.`;
   });
 }

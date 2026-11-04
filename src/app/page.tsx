@@ -77,7 +77,7 @@ export default async function Home() {
                 <li>In the kitchen, pick the swaps the AI suggests and nod. Watch PayPal capture the lower amount, or decline and watch the hold disappear.</li>
               </ol>
             </div>
-            <div className="rounded-2xl bg-cream p-4 text-sm">
+            <div className="self-start rounded-2xl bg-cream p-4 text-sm">
               <div className="font-medium">PayPal sandbox buyer</div>
               {process.env.SANDBOX_BUYER_EMAIL ? (
                 <div className="mt-2 space-y-1 font-mono text-xs">
@@ -105,7 +105,12 @@ export default async function Home() {
 
         <section className="mb-6 rounded-3xl border border-line bg-paper p-6 sm:p-8">
           <h2 className="mb-4 font-display text-2xl font-semibold">Who holds the money, step by step</h2>
-          <FlowDiagram />
+          <p className="-mt-2 mb-2 text-xs text-muted md:hidden">Swipe sideways to see the whole flow →</p>
+          <div className="-mx-2 overflow-x-auto px-2">
+            <div className="min-w-[760px]">
+              <FlowDiagram />
+            </div>
+          </div>
         </section>
 
         <section id="agents" className="mb-6 scroll-mt-6 rounded-3xl border border-line bg-paper p-6 sm:p-8">
@@ -138,7 +143,7 @@ export default async function Home() {
                 ))}
               </dl>
             </div>
-            <div className="rounded-2xl bg-[#1d1a17] p-5 text-[13px] leading-relaxed text-[#f5efe6]">
+            <div className="self-start rounded-2xl bg-[#1d1a17] p-5 text-[13px] leading-relaxed text-[#f5efe6]">
               <div className="mb-3 text-[11px] uppercase tracking-[0.14em] text-white/60">Example conversation with an AI assistant</div>
               <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-basil px-3.5 py-2">Order dinner from {r.name} for me and my son. He&rsquo;s allergic to sesame.</div>
               <div className="mt-3 space-y-1.5 font-mono text-[11px] text-[#7fd1a0]">

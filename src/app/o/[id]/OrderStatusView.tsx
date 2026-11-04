@@ -127,7 +127,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
                     <div className="mt-0.5 text-xs text-muted">
                       {sws.length ? "Now contains " : "Contains "}
                       {after.map(allergenLabel).join(", ") || "none of the 14 allergens"}
-                      {d.mayContain.length > 0 && `; may contain ${d.mayContain.map(allergenLabel).join(", ")}`}
+                      {d.mayContain.some((a) => !after.includes(a)) && `; may contain ${d.mayContain.filter((a) => !after.includes(a)).map(allergenLabel).join(", ")}`}
                     </div>
                   )}
                 </li>

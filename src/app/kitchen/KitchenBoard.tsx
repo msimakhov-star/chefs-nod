@@ -97,7 +97,7 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
           {waiting.length === 0 ? (
             <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-white/15 text-white/60">No orders waiting. New allergy orders appear here instantly.</div>
           ) : (
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid items-start gap-5 lg:grid-cols-2">
               {waiting.map((o) => (
                 <Ticket key={o.id} order={o} menu={menu} now={now} signoffMinutes={signoffMinutes} onDone={load} />
               ))}
@@ -239,7 +239,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
           const chosen = swaps[it.id] ?? [];
           const originalHit = d?.contains.filter((a) => allergies.includes(a)) ?? [];
           const hit = d ? allergensAfter(d, chosen).filter((a) => allergies.includes(a)) : [];
-          const may = d?.mayContain.filter((a) => allergies.includes(a)) ?? [];
+          const may = d?.mayContain.filter((a) => allergies.includes(a) && !hit.includes(a)) ?? [];
           return (
             <div key={it.id} className="py-3">
               <div className="flex items-baseline justify-between gap-3">
@@ -309,8 +309,11 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
             )}
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="mb-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-white/55 focus:border-white/30" />
             <div className="flex flex-wrap items-center gap-2">
-              <button disabled={busy} onClick={() => decide(changed ? "approved_with_changes" : "approved")} className="flex-1 rounded-xl bg-[#7fd1a0] px-4 py-3.5 text-base font-bold text-black hover:brightness-105 disabled:opacity-50">
-                {busy ? "Talking to PayPal…" : changed ? `Nod with changes · charge ${gbp(newTotal)}` : `Nod · charge ${gbp(order.authorizedMinor)}`}
+              <button disabled={busy} onClick={() => {
+                  if (stillContains.length && !window.confirm(`This still contains a declared allergen: ${stillContains.map((x) => `${x.it.dishName} (${x.left.map(allergenLabel).join(", ")})`).join("; ")}. Nod anyway?`)) return;
+                  decide(changed ? "approved_with_changes" : "approved");
+                }} className={`flex-1 rounded-xl px-4 py-3.5 text-base font-bold disabled:opacity-50 ${stillContains.length ? "border border-saffron bg-transparent text-[#f0b860] hover:bg-saffron/15" : "bg-[#7fd1a0] text-black hover:brightness-105"}`}>
+                {busy ? "Talking to PayPal…" : `${stillContains.length ? "Nod anyway" : changed ? "Nod with changes" : "Nod"} · charge ${gbp(newTotal)}`}
               </button>
               <button disabled={busy} onClick={() => setDeclining(true)} className="rounded-xl border border-chili/60 px-4 py-3.5 text-sm font-semibold text-[#ff8a80] hover:bg-chili/20">
                 Can&rsquo;t do it

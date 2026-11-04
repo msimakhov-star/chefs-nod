@@ -48,6 +48,7 @@ export async function askCopilot(question: string, history: { role: "user" | "as
             status: o.status,
             held: o.authorizedMinor,
             captured: o.capturedMinor,
+            refunded: o.refundedMinor ?? 0,
             decision: o.decision?.outcome ?? null,
             paypal: { order: o.paypalOrderId, authorization: o.authorizationId, capture: o.captureId },
           }));

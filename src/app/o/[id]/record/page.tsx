@@ -18,7 +18,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const menu = dishes.list(r.id);
   const h = await headers();
   const origin = process.env.PUBLIC_URL || `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
-  const qr = await QRCode.toString(`${origin}/o/${o.id}`, { type: "svg", margin: 0, width: 120 });
+  const qr = await QRCode.toString(`${origin}/o/${o.id}`, { type: "svg", margin: 0, width: 88 });
   const swapsFor = (itemId: string) => (o.decision?.appliedSwaps ?? []).filter((x) => x.itemId === itemId).map((x) => x.swapId);
   const decided = o.decision ? new Date(o.decision.decidedAt) : null;
 
@@ -67,7 +67,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               {d && (
                 <div className="text-[11px]">
                   {"  "}Contains{ids.length ? " (after changes)" : ""}: {allergensAfter(d, ids).map(allergenLabel).join(", ") || "none of the 14"}
-                  {d.mayContain.length ? `; may contain: ${d.mayContain.map(allergenLabel).join(", ")}` : ""}
+                  {d.mayContain.some((a) => !allergensAfter(d, ids).includes(a)) ? `; may contain: ${d.mayContain.filter((a) => !allergensAfter(d, ids).includes(a)).map(allergenLabel).join(", ")}` : ""}
                 </div>
               )}
             </div>

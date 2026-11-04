@@ -2,7 +2,7 @@
 // Source: https://www.food.gov.uk/business-guidance/allergen-guidance-for-food-businesses
 export const ALLERGENS = [
   { id: "celery", label: "Celery" },
-  { id: "gluten", label: "Cereals containing gluten" },
+  { id: "gluten", label: "Gluten (cereals)" },
   { id: "crustaceans", label: "Crustaceans" },
   { id: "eggs", label: "Eggs" },
   { id: "fish", label: "Fish" },
@@ -14,7 +14,7 @@ export const ALLERGENS = [
   { id: "peanuts", label: "Peanuts" },
   { id: "sesame", label: "Sesame" },
   { id: "soya", label: "Soya" },
-  { id: "sulphites", label: "Sulphur dioxide and sulphites" },
+  { id: "sulphites", label: "Sulphites" },
 ] as const;
 
 export type AllergenId = (typeof ALLERGENS)[number]["id"];

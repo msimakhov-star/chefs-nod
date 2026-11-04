@@ -26,7 +26,9 @@ const gridTheme = themeQuartz.withParams({
   fontSize: 13,
 });
 
-export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaurant: Restaurant; initialMenu: Dish[]; aiName: string }) {
+export default function OwnerApp({ restaurant, initialMenu, aiName: configuredAi }: { restaurant: Restaurant; initialMenu: Dish[]; aiName: string }) {
+  const aiEnabled = configuredAi !== "not configured";
+  const aiName = aiEnabled ? configuredAi : "The AI";
   const [tab, setTab] = useState<Tab>("ledger");
   const [menu, setMenu] = useState(initialMenu);
   const [orders, setOrders] = useState<OOrder[]>([]);
@@ -69,7 +71,7 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
         </Link>
       </header>
       {tab === "ledger" && <Ledger orders={orders} onChange={load} />}
-      {tab === "analytics" && <Analytics orders={orders} menu={menu} aiEnabled={aiName !== "not configured"} />}
+      {tab === "analytics" && <Analytics orders={orders} menu={menu} aiEnabled={aiEnabled} />}
       {tab === "menu" && <MenuStudio menu={menu} setMenu={setMenu} reload={reloadMenu} aiName={aiName} />}
       {tab === "insights" && <Insights orders={orders} aiName={aiName} />}
       {tab === "settings" && <Settings restaurant={restaurant} />}
@@ -80,7 +82,8 @@ export default function OwnerApp({ restaurant, initialMenu, aiName }: { restaura
 // ---------------- Ledger ----------------
 
 function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }) {
-  const [selected, setSelected] = useState<OOrder | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = orders.find((o) => o.id === selectedId) ?? null;
   const allergy = orders.filter((o) => o.party.some((p) => p.allergies.length));
   const decided = orders.filter((o) => o.decision);
   const captured = orders.filter((o) => o.capturedMinor != null);
@@ -92,16 +95,17 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
 
   const cols = useMemo<ColDef<OOrder>[]>(
     () => [
-      { headerName: "Time", field: "createdAt", width: 110, valueFormatter: (p) => new Date(p.value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), sort: "desc" },
-      { headerName: "Diner", field: "dinerName", width: 120 },
-      { headerName: "Channel", width: 130, valueGetter: (p) => (p.data?.channel === "agent" ? `🤖 ${p.data.agentName}` : p.data?.channel) },
-      { headerName: "Allergies", flex: 1, minWidth: 160, valueGetter: (p) => p.data?.party.flatMap((x) => x.allergies.map(allergenLabel)).join(", ") || "none" },
-      { headerName: "Status", field: "status", width: 190, cellRenderer: (p: { value: Order["status"] }) => <StatusBadge status={p.value} /> },
-      { headerName: "Chef", width: 150, valueGetter: (p) => (p.data?.decision ? p.data.decision.outcome.replaceAll("_", " ") : "") },
-      { headerName: "Held", field: "authorizedMinor", width: 95, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Charged", field: "capturedMinor", width: 100, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Released", width: 100, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Nod time", width: 100, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
+      { headerName: "Time", field: "createdAt", width: 90, valueFormatter: (p) => new Date(p.value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), sort: "desc" },
+      { headerName: "Diner", field: "dinerName", width: 100 },
+      { headerName: "Channel", width: 105, valueGetter: (p) => (p.data?.channel === "agent" ? `🤖 ${p.data.agentName}` : p.data?.channel) },
+      { headerName: "Allergies", flex: 1, minWidth: 110, valueGetter: (p) => p.data?.party.flatMap((x) => x.allergies.map(allergenLabel)).join(", ") || "none" },
+      { headerName: "Status", field: "status", width: 185, cellRenderer: (p: { value: Order["status"] }) => <StatusBadge status={p.value} /> },
+      { headerName: "Chef", width: 120, valueGetter: (p) => (p.data?.decision ? p.data.decision.outcome.replaceAll("_", " ") : "") },
+      { headerName: "Held", field: "authorizedMinor", width: 85, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Charged", field: "capturedMinor", width: 90, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Released", width: 90, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Refunded", width: 95, type: "rightAligned", valueGetter: (p) => p.data?.refundedMinor ?? null, valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Nod time", width: 85, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
       { headerName: "PayPal capture", field: "captureId", width: 170, cellClass: "font-mono text-xs" },
     ],
     [],
@@ -117,10 +121,11 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
         <Kpi label="Captured" value={gbp(capturedTotal)} accent />
         <Kpi label="Released to diners" value={gbp(released)} />
       </div>
-      <div className="h-[520px] overflow-hidden rounded-2xl border border-line bg-paper">
-        <AgGridReact<OOrder> theme={gridTheme} rowData={orders} columnDefs={cols} getRowId={(p) => p.data.id} onRowClicked={(e) => setSelected(e.data ?? null)} animateRows rowSelection={{ mode: "singleRow", enableClickSelection: true, checkboxes: false }} />
+      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <AgGridReact<OOrder> theme={gridTheme} domLayout="autoHeight" pagination paginationPageSize={20} paginationPageSizeSelector={false} rowData={orders} columnDefs={cols} getRowId={(p) => p.data.id} onRowClicked={(e) => setSelectedId(e.data?.id ?? null)} animateRows overlayNoRowsTemplate="No orders yet. Place one from the order page." rowSelection={{ mode: "singleRow", enableClickSelection: true, checkboxes: false }} />
       </div>
-      {selected && <OrderDrawer order={selected} onClose={() => setSelected(null)} onChange={onChange} />}
+      <p className="-mt-2 text-xs text-muted">Select an order to see its PayPal details or send a refund.</p>
+      {selected && <OrderDrawer key={`${selected.id}-${selected.refundedMinor ?? 0}`} order={selected} onClose={() => setSelectedId(null)} onChange={onChange} />}
     </div>
   );
 }
@@ -129,12 +134,12 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
   const left = (order.capturedMinor ?? 0) - (order.refundedMinor ?? 0);
   const [amount, setAmount] = useState((left / 100).toFixed(2));
   const [reason, setReason] = useState("");
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState(order.status === "refunded" ? "Fully refunded through PayPal." : "");
   async function refund() {
     const res = await fetch(`/api/orders/${order.id}/refund`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountMinor: Math.round(Number(amount) * 100), reason }) });
     const d = await res.json();
     setMsg(res.ok ? "Refund sent through PayPal." : d.error);
-    onChange();
+    if (res.ok) onChange();
   }
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
@@ -155,7 +160,7 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
         <Link href={`/o/${order.id}`} className="text-basil">
           Diner view
         </Link>
-        {order.status === "captured" && (
+        {order.captureId && (
           <Link href={`/o/${order.id}/record`} className="text-basil">
             Sign-off record
           </Link>
@@ -192,16 +197,19 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
 function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: (m: Dish[]) => void; reload: () => Promise<void>; aiName: string }) {
   const [busy, setBusy] = useState<"" | "import" | "publish">("");
   const [msg, setMsg] = useState("");
+  const [msgIsError, setMsgIsError] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
   async function importPhoto(file: File) {
     setBusy("import");
+    setMsgIsError(false);
     setMsg(`Reading the menu with ${aiName}…`);
     const fd = new FormData();
     fd.append("menu", file);
     const res = await fetch("/api/menu/import", { method: "POST", body: fd });
     const d = await res.json();
     setBusy("");
+    setMsgIsError(!res.ok);
     if (!res.ok) return setMsg(d.error);
     setMsg(`${d.drafts.length} dishes drafted. Nothing is shown to diners until you confirm each one.`);
     await reload();
@@ -218,6 +226,7 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
     const res = await fetch("/api/menu/publish", { method: "POST" });
     const d = await res.json();
     setBusy("");
+    setMsgIsError(!res.ok);
     setMsg(res.ok ? `${d.synced.length} confirmed dishes synced to the PayPal Catalog Products API.` : d.error);
     await reload();
   }
@@ -265,7 +274,11 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
           </>
         )}
       </div>
-      {msg && <div className="rounded-xl bg-basil-soft px-4 py-3 text-sm text-basil">{msg}</div>}
+      {msg && (
+        <div role="status" className={`rounded-xl px-4 py-3 text-sm ${msgIsError ? "bg-chili-soft text-chili" : "bg-basil-soft text-basil"}`}>
+          {msg}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
         <table className="w-full text-sm">
@@ -283,17 +296,57 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
             {menu.map((d) => (
               <tr key={d.id} className={!d.confirmed ? "bg-saffron-soft/60" : ""}>
                 <td className="max-w-[260px] px-4 py-3 align-top">
-                  <div className="font-medium">{d.name}</div>
-                  <div className="text-xs text-muted">{d.category}</div>
+                  {editing === d.id ? (
+                    <div className="space-y-1.5">
+                      <input defaultValue={d.name} aria-label="Dish name" onBlur={(e) => e.target.value.trim() && e.target.value !== d.name && save({ ...d, name: e.target.value.trim() })} className="w-full rounded-lg border border-line px-2 py-1 font-medium" />
+                      <input defaultValue={d.category} aria-label="Category" onBlur={(e) => e.target.value.trim() && e.target.value !== d.category && save({ ...d, category: e.target.value.trim() })} className="w-full rounded-lg border border-line px-2 py-1 text-xs" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="font-medium">{d.name}</div>
+                      <div className="text-xs text-muted">{d.category}</div>
+                    </>
+                  )}
                   {d.paypalProductId && <div className="mt-1 font-mono text-[10px] text-pp-sky">PayPal product {d.paypalProductId}</div>}
                 </td>
-                <td className="px-4 py-3 align-top">{gbp(d.priceMinor)}</td>
+                <td className="px-4 py-3 align-top">
+                  {editing === d.id ? (
+                    <input
+                      defaultValue={(d.priceMinor / 100).toFixed(2)}
+                      aria-label="Price in pounds"
+                      inputMode="decimal"
+                      onBlur={(e) => {
+                        const minor = Math.round(Number(e.target.value) * 100);
+                        if (Number.isFinite(minor) && minor > 0 && minor !== d.priceMinor) save({ ...d, priceMinor: minor });
+                      }}
+                      className="w-20 rounded-lg border border-line px-2 py-1"
+                    />
+                  ) : (
+                    gbp(d.priceMinor)
+                  )}
+                </td>
                 <td className="px-4 py-3 align-top">
                   <div className="space-y-1.5">
                     {d.components.map((c) => (
                       <div key={c.id}>
                         <div className="text-xs text-muted">{c.name}</div>
                         <AllergenEditor value={c.allergens} editing={editing === d.id} onChange={(v) => save({ ...d, components: d.components.map((x) => (x.id === c.id ? { ...x, allergens: v } : x)) })} />
+                        {editing === d.id && (
+                          <label className="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                            <input
+                              type="checkbox"
+                              className="accent-basil"
+                              checked={d.swaps.some((s) => s.replaces === c.id && !s.with)}
+                              onChange={(e) =>
+                                save({
+                                  ...d,
+                                  swaps: e.target.checked ? [...d.swaps, { id: `omit_${c.id}`, label: `Leave out ${c.name.toLowerCase()}`, priceDeltaMinor: 0, replaces: c.id, with: null }] : d.swaps.filter((s) => !(s.replaces === c.id && !s.with)),
+                                })
+                              }
+                            />
+                            Kitchen can leave this out
+                          </label>
+                        )}
                       </div>
                     ))}
                   </div>

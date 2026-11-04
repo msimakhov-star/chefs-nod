@@ -52,7 +52,6 @@ body {
 }
 
 /* Hero story: one 10 s timeline; each step appears at its own point and everything resets together. */
-@keyframes s1 { 0% { opacity: 0; transform: translateY(14px); } 5%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
 @keyframes s2 { 0%, 11% { opacity: 0; transform: translateY(14px); } 16%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
 @keyframes s3 { 0%, 23% { opacity: 0; transform: translateY(14px); } 28%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
 @keyframes s4 { 0%, 52% { opacity: 0; transform: translateY(14px); } 57%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
@@ -60,7 +59,7 @@ body {
 @keyframes c2 { 0%, 38% { background: transparent; color: inherit; } 40%, 92% { background: #7fd1a0; color: #000; border-color: #7fd1a0; } 100% { background: transparent; } }
 @keyframes nod { 0%, 43% { opacity: 0.35; transform: none; } 45% { opacity: 1; transform: scale(1.04); } 48%, 92% { opacity: 1; transform: none; } 100% { opacity: 0.35; } }
 .hero-story [data-step] { opacity: 0; animation-duration: 10s; animation-timing-function: ease-out; animation-iteration-count: infinite; animation-fill-mode: both; }
-.hero-story [data-step="1"] { animation-name: s1; }
+.hero-story [data-step="1"] { opacity: 1; animation: none; }
 .hero-story [data-step="2"] { animation-name: s2; }
 .hero-story [data-step="3"] { animation-name: s3; }
 .hero-story [data-step="4"] { animation-name: s4; }

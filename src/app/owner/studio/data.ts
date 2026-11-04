@@ -33,6 +33,7 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
     const captured = (o.capturedMinor ?? 0) / 100;
     return {
       id: o.id,
+      ref: o.id.slice(-6).toUpperCase(),
       createdAt: o.createdAt.slice(0, 10),
       diner: o.dinerName,
       channel: o.channel === "agent" ? `AI agent (${o.agentName})` : o.channel === "replay" ? "Replay" : "Web",
@@ -62,13 +63,19 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
         qty: i.qty,
         lineTotal: (i.unitPriceMinor * i.qty) / 100,
         conflict: hits.length ? 1 : 0,
-        conflictAllergens: hits.map(allergenLabel).join(", ") || "None",
         swapsApplied: swaps.length,
         allergenRemoved: hits.length && dish && !allergensAfter(dish, swaps).some((a) => allergies.includes(a)) ? 1 : 0,
       };
     }),
   );
   const declRows = held.flatMap((o) => o.party.flatMap((p) => p.allergies.map((a) => ({ id: `${o.id}-${p.name}-${a}`, orderId: o.id, person: p.name, allergen: allergenLabel(a), one: 1 }))));
+  const conflictRows = held.flatMap((o) =>
+    o.items.flatMap((i) => {
+      const dish = menu.find((d) => d.id === i.dishId);
+      const allergies = o.party.find((p) => p.name.toLowerCase() === i.forPerson.toLowerCase())?.allergies ?? [];
+      return (dish?.contains.filter((a) => allergies.includes(a)) ?? []).map((a) => ({ id: `${i.id}-${a}`, orderId: o.id, dish: i.dishName, allergen: allergenLabel(a), one: 1 }));
+    }),
+  );
   const dates = orderRows.map((r) => r.createdAt).sort();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -82,6 +89,7 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
         data: orderRows,
         fields: fields([
           ["id", "Order ID", "textFormat", true],
+          ["ref", "Order", "textFormat"],
           ["createdAt", "Order date", "dateFormat"],
           ["diner", "Diner", "textFormat"],
           ["channel", "Channel", "textFormat"],
@@ -110,9 +118,21 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
           ["qty", "Quantity", "integerFormat"],
           ["lineTotal", "Line total", "currencyFormat"],
           ["conflict", "Allergen conflicts", "integerFormat"],
-          ["conflictAllergens", "Conflicting allergen", "textFormat"],
           ["swapsApplied", "Swaps applied", "integerFormat"],
           ["allergenRemoved", "Removed by swaps", "integerFormat"],
+        ]),
+      },
+      {
+        id: "conflicts",
+        name: "Allergen conflicts",
+        description: "One row per declared allergen found in a dish for the person it is for.",
+        data: conflictRows,
+        fields: fields([
+          ["id", "Conflict ID", "textFormat", true],
+          ["orderId", "Order ID", "textFormat", true],
+          ["dish", "Dish with conflict", "textFormat"],
+          ["allergen", "Conflicting allergen", "textFormat"],
+          ["one", "Conflicts", "integerFormat"],
         ]),
       },
       {
@@ -132,6 +152,7 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
     relationships: [
       manyToOne("line-order", "lines.orderId", "orders.id"),
       manyToOne("decl-order", "declarations.orderId", "orders.id"),
+      manyToOne("conflict-order", "conflicts.orderId", "orders.id"),
       { id: "orders-calendar", source: { tableId: "orders", fieldId: "createdAt" }, target: { calendarId: "calendar" } },
     ],
     calendars: [

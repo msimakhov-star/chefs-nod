@@ -4,7 +4,7 @@ import { kitchenCheck, rulesCheck, translate } from "./agents";
 import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, refundCapture, voidHold, PayPalFailure } from "./paypal";
 import { publish } from "./bus";
 import type { ChefDecision, Order, OrderItem, Person } from "./types";
-import { ALLERGEN_IDS, type AllergenId } from "./allergens";
+import { ALLERGEN_IDS } from "./allergens";
 
 export type PlaceOrderInput = {
   restaurantSlug: string;

@@ -20,7 +20,7 @@ export function aiProvider() {
       fast: p(process.env.AI_FAST_MODEL || "gemini-flash-lite-latest"),
     };
   }
-  if (process.env.LOCAL_AI !== "1") throw new Error("No AI key configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY, or LOCAL_AI=1 for Ollama)");
+  if (process.env.LOCAL_AI !== "1") throw new Error("The AI assistant is not switched on for this server.");
   const p = createOpenAICompatible({
     name: "ollama",
     baseURL: process.env.OLLAMA_URL || "http://localhost:11434/v1",
