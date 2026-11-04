@@ -5,7 +5,7 @@ const at = (xTrack: number, yTrack: number, xSpan: number, ySpan: number): AgWid
 const title = (text: string) => ({ title: { enabled: true, text } });
 const sum = (id: string) => ({ id, aggregation: "sum" as const });
 const avg = (id: string) => ({ id, aggregation: "avg" as const });
-const FONT = "var(--font-inter), system-ui, sans-serif";
+let FONT = "system-ui, sans-serif";
 const typo = (fontSize: number, fontWeight: "normal" | "bold" = "normal") => ({ fontFamily: FONT, fontSize, fontWeight, fontStyle: "normal" as const });
 const kpi = (text: string, value: { id: string; aggregation?: "sum" | "avg" }, sparklineX?: string) => ({
   type: "value" as const,
@@ -13,6 +13,7 @@ const kpi = (text: string, value: { id: string; aggregation?: "sum" | "avg" }, s
   format: { title: { enabled: true, text, typography: typo(13, "bold") }, caption: { enabled: true, text: "", typography: typo(0) }, style: { typography: typo(24) } },
 });
 
+function pages(): AgPageState[] {
 const money: AgPageState = {
   id: "money",
   widgets: {
@@ -102,4 +103,11 @@ const allergies: AgPageState = {
   },
 };
 
-export const ownerReport: AgReportState = { selectedPageId: money.id, pages: [money, allergies], panels: { filters: { collapsed: true } } };
+return [money, allergies];
+}
+
+export function ownerReport(font: string): AgReportState {
+  FONT = font;
+  const p = pages();
+  return { selectedPageId: p[0].id, pages: p, panels: { filters: { collapsed: true } } };
+}

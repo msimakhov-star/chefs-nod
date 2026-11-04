@@ -21,6 +21,9 @@ if (process.env.NODE_ENV !== "production") enableStudioDevValidations();
 export default function Analytics({ orders, menu, aiEnabled }: { orders: (Order & { authorizedAt: string | null })[]; menu: Dish[]; aiEnabled: boolean }) {
   const [mode, setMode] = useState<AgStudioMode>("view");
   const data = useMemo(() => buildStudioData(orders, menu), [orders, menu]);
+  const font = useMemo(() => `${getComputedStyle(document.documentElement).getPropertyValue("--font-inter").trim() || "system-ui"}, system-ui, sans-serif`, []);
+  const theme = useMemo(() => chefsNodTheme(font), [font]);
+  const initial = useMemo(() => ownerReport(font), [font]);
   const held = orders.filter((o) => o.authorizationId).length;
   if (!held) return <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-line text-sm text-muted">No held orders yet. Try Kitchen settings, then &ldquo;Fill a week of history&rdquo;.</div>;
   return (
@@ -33,7 +36,7 @@ export default function Analytics({ orders, menu, aiEnabled }: { orders: (Order 
       </div>
       <div style={{ height: 1100 }}>
         <AgStudioProvider licenseKey={process.env.NEXT_PUBLIC_AG_LICENSE_KEY} modules={aiEnabled ? [AgStudioAiModule] : undefined}>
-          <AgStudio style={{ height: "100%", width: "100%" }} theme={chefsNodTheme} layout={{ widgetBorderEnabled: true }} data={data} initialState={ownerReport} mode={mode} ai={aiEnabled ? ai : undefined} />
+          <AgStudio style={{ height: "100%", width: "100%" }} theme={theme} layout={{ widgetBorderEnabled: true }} data={data} initialState={initial} mode={mode} ai={aiEnabled ? ai : undefined} />
         </AgStudioProvider>
       </div>
     </div>

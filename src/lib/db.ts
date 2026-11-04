@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { randomUUID } from "node:crypto";
 import type { Dish, Order, OrderEvent, Restaurant } from "./types";
 import { SEED_RESTAURANT, SEED_DISHES } from "./seed";
@@ -9,7 +10,10 @@ import { SEED_RESTAURANT, SEED_DISHES } from "./seed";
 const g = globalThis as unknown as { __db?: DatabaseSync };
 
 function open(): DatabaseSync {
-  const file = process.env.DB_PATH || path.join(process.cwd(), "data", "chefsnod.db");
+  // In development the file lives outside the project: SQLite touches its WAL files on every read,
+  // and the dev server would treat that as a code change and reload the page.
+  const file =
+    process.env.DB_PATH || (process.env.NODE_ENV === "production" ? path.join(process.cwd(), "data", "chefsnod.db") : path.join(os.homedir(), ".chefs-nod", "dev.db"));
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec(`

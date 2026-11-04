@@ -5,6 +5,7 @@ import { isSimulated } from "@/lib/paypal";
 import { Brand, SandboxBanner } from "@/components/ui";
 import CopyButton from "@/components/CopyButton";
 import FlowDiagram from "@/components/FlowDiagram";
+import HeroStory from "@/components/HeroStory";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function Home() {
             <Link href={`/r/${r.slug}`} className="hover:text-ink">Order</Link>
             <Link href="/kitchen" className="hover:text-ink">Kitchen</Link>
             <Link href="/owner" className="hover:text-ink">Owner</Link>
+            <a href="#agents" className="hidden hover:text-ink sm:inline">For AI agents</a>
           </nav>
         </header>
 
@@ -57,21 +59,7 @@ export default async function Home() {
             </div>
             <p className="mt-4 text-xs text-muted">Tip for the demo: open the kitchen screen in a second window, then order.</p>
           </div>
-          <div className="rounded-3xl border border-line bg-paper p-6 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Connect your AI assistant</div>
-            <p className="mt-2 text-sm leading-relaxed">
-              {r.name} is agent-ready. Add this MCP server to Claude, ChatGPT or Cursor and ask it to order dinner for someone with an allergy.
-            </p>
-            <div className="mt-3 flex items-center gap-2 rounded-xl bg-cream p-3 font-mono text-xs">
-              <span className="min-w-0 flex-1 truncate">{mcpUrl}</span>
-              <CopyButton text={mcpUrl} />
-            </div>
-            <div className="mt-3 rounded-xl bg-[#1d1a17] p-3 font-mono text-[11px] leading-relaxed text-[#f5efe6]">
-              <div className="text-white/60"># Claude Code</div>
-              <div className="break-all">claude mcp add --transport http chefs-nod {mcpUrl}</div>
-            </div>
-            <div className="mt-4 text-xs text-muted">Tools: get_menu · check_allergies · place_order · get_order_status</div>
-          </div>
+          <HeroStory />
         </section>
 
         <section className="mb-4 rounded-3xl border border-line bg-paper p-6 sm:p-8">
@@ -120,6 +108,55 @@ export default async function Home() {
           <FlowDiagram />
         </section>
 
+        <section id="agents" className="mb-6 scroll-mt-6 rounded-3xl border border-line bg-paper p-6 sm:p-8">
+          <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-basil">For AI agents</div>
+              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">{r.name} is agent-ready</h2>
+              <p className="mt-3 text-[15px] leading-relaxed text-muted">
+                Any assistant that speaks the Model Context Protocol can read the confirmed allergen menu, pre-check a party&rsquo;s allergies and place an order. The person still approves the payment in PayPal, and the chef still signs off the food.
+              </p>
+              <div className="mt-5 flex items-center gap-2 rounded-xl bg-cream p-3 font-mono text-xs">
+                <span className="min-w-0 flex-1 truncate">{mcpUrl}</span>
+                <CopyButton text={mcpUrl} />
+              </div>
+              <div className="mt-3 rounded-xl bg-[#1d1a17] p-3 font-mono text-[11px] leading-relaxed text-[#f5efe6]">
+                <div className="text-white/60"># Claude Code</div>
+                <div className="break-all">claude mcp add --transport http chefs-nod {mcpUrl}</div>
+              </div>
+              <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                {[
+                  ["get_menu", "Dishes, prices, allergens per component, swaps"],
+                  ["check_allergies", "Conflicts for each person, and the swaps that remove them"],
+                  ["place_order", "Creates the order and a PayPal hold; returns the approval link"],
+                  ["get_order_status", "Held, chef checking, charged or released, in the diner's language"],
+                ].map(([t, d]) => (
+                  <div key={t} className="rounded-xl border border-line p-3">
+                    <dt className="font-mono text-xs font-semibold text-basil">{t}</dt>
+                    <dd className="mt-1 text-xs leading-relaxed text-muted">{d}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <div className="rounded-2xl bg-[#1d1a17] p-5 text-[13px] leading-relaxed text-[#f5efe6]">
+              <div className="mb-3 text-[11px] uppercase tracking-[0.14em] text-white/60">Example conversation with an AI assistant</div>
+              <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-basil px-3.5 py-2">Order dinner from {r.name} for me and my son. He&rsquo;s allergic to sesame.</div>
+              <div className="mt-3 space-y-1.5 font-mono text-[11px] text-[#7fd1a0]">
+                <div>→ get_menu()</div>
+                <div>→ check_allergies(party: [Dan: sesame], items: [halloumi burger])</div>
+                <div className="text-white/60">  sesame in: brioche bun, tahini slaw · swaps: plain bun, no slaw</div>
+                <div>→ place_order(...) → approval_url, held £24.50</div>
+              </div>
+              <div className="mt-3 w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-white/10 px-3.5 py-2">
+                I&rsquo;ve picked a halloumi burger for Dan and a falafel wrap for you. Sesame is in the bun and the slaw, so the chef will be asked to swap both. Approve the hold here: nothing is charged until the chef confirms.
+              </div>
+              <div className="mt-3 rounded-xl border border-white/15 px-3 py-2 text-xs text-white/70">
+                Then <span className="font-mono text-[#7fd1a0]">get_order_status</span>: &ldquo;Confirmed by the chef with changes. You paid £23.00.&rdquo;
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-6 rounded-3xl bg-basil px-6 py-8 text-white sm:px-10">
           <div className="grid gap-6 md:grid-cols-3">
             <div>
@@ -136,6 +173,14 @@ export default async function Home() {
             </div>
           </div>
         </section>
+
+        <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-xs text-muted">
+          <span>Built for the PayPal AI Hackathon 2026 · PayPal sandbox only, no real money · {r.name} is a fictional restaurant</span>
+          <span className="flex gap-4">
+            <a href="/llms.txt" className="hover:text-ink">llms.txt</a>
+            <a href="#agents" className="hover:text-ink">MCP server</a>
+          </span>
+        </footer>
       </div>
     </>
   );
