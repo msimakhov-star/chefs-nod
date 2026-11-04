@@ -61,8 +61,8 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
           {order.status === "awaiting_payment" && "Approve the hold in PayPal"}
           {order.status === "awaiting_chef" && "The chef is checking your allergies"}
           {order.status === "captured" && (order.decision?.outcome === "approved_with_changes" ? "Confirmed, with changes" : "Confirmed by the chef")}
-          {order.status === "voided" && "The chef couldn't make this safely"}
-          {order.status === "expired" && "No answer in time, hold released"}
+          {order.status === "voided" && "The chef couldn't confirm this order"}
+          {order.status === "expired" && (order.authorizationId ? "No answer in time, hold released" : "This order has expired")}
           {order.status === "refunded" && "Refunded"}
           {order.status === "failed" && "Payment problem"}
         </h1>

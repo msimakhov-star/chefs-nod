@@ -49,7 +49,7 @@ export const SEED_DISHES: Dish[] = [
     swaps: [
       swap("plain_bun", "Plain sourdough bun instead of sesame brioche", 0, "bun", { name: "Plain sourdough bun", allergens: a("gluten") }),
       swap("no_slaw", "Leave out the tahini slaw", -150, "slaw"),
-      swap("gf_bun", "Gluten-free bun", 100, "bun", { name: "Gluten-free bun", allergens: a("eggs") }),
+      swap("gf_bun", "Rice-flour bun", 100, "bun", { name: "Rice-flour bun", allergens: a("eggs") }),
     ],
   }),
   d({
@@ -206,7 +206,7 @@ export const SEED_DISHES: Dish[] = [
   d({
     id: "dish_sorbet",
     name: "Blood orange sorbet",
-    description: "Dairy-free sorbet.",
+    description: "Sharp blood orange sorbet.",
     category: "Desserts",
     priceMinor: 600,
     components: [c("sorbet", "Blood orange sorbet", a())],

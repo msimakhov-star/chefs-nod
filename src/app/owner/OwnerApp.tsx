@@ -126,7 +126,8 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
 }
 
 function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () => void; onChange: () => void }) {
-  const [amount, setAmount] = useState(((order.capturedMinor ?? 0) / 100).toFixed(2));
+  const left = (order.capturedMinor ?? 0) - (order.refundedMinor ?? 0);
+  const [amount, setAmount] = useState((left / 100).toFixed(2));
   const [reason, setReason] = useState("");
   const [msg, setMsg] = useState("");
   async function refund() {
@@ -160,6 +161,7 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
           </Link>
         )}
         <span className="text-muted">{order.webhooks} PayPal webhooks verified</span>
+        {!!order.refundedMinor && <span className="text-muted">{gbp(order.refundedMinor)} refunded so far</span>}
       </div>
       {order.status === "captured" && (
         <div className="mt-4 flex flex-wrap items-center gap-2">

@@ -84,6 +84,7 @@ export type Order = {
   status: OrderStatus;
   authorizedMinor: number;
   capturedMinor: number | null;
+  refundedMinor?: number;
   currency: string;
   paypalOrderId: string | null;
   authorizationId: string | null;

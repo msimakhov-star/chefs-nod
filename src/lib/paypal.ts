@@ -203,12 +203,12 @@ export async function voidHold(order: Order) {
   return { status: String(result?.status ?? "VOIDED") };
 }
 
-export async function refundCapture(order: Order, amountMinor: number, noteToPayer: string) {
+export async function refundCapture(order: Order, amountMinor: number, noteToPayer: string, alreadyRefundedMinor = 0) {
   if (isSimulated()) return { refundId: `SIMREF-${order.id.slice(-8).toUpperCase()}`, status: "COMPLETED" };
   const result = await call("Refund", () =>
     sdk().payments.refundCapturedPayment({
       captureId: order.captureId!,
-      paypalRequestId: `${order.id}-refund-${amountMinor}`,
+      paypalRequestId: `${order.id}-refund-${alreadyRefundedMinor}-${amountMinor}`, // two equal partial refunds must stay two refunds
       prefer: "return=representation",
       body: { amount: money(amountMinor, order.currency), noteToPayer: noteToPayer.slice(0, 255), invoiceId: `CN-${order.id}` },
     }),

@@ -58,11 +58,9 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
     const tick = setInterval(() => {
       setNow(Date.now());
     }, 1000);
-    const expire = setInterval(() => fetch("/api/kitchen/tick", { method: "POST" }), 30000);
     return () => {
       es.close();
       clearInterval(tick);
-      clearInterval(expire);
     };
   }, [load, restaurant.id]);
 
