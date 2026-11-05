@@ -52,7 +52,7 @@ const allergies: AgPageState = {
   id: "allergies",
   widgets: {
     "kpi-allergy": kpi("Allergy orders", sum("orders.allergyOrder")),
-    "kpi-conflicts": kpi("Dishes with a declared allergen", sum("lines.conflict")),
+    "kpi-conflicts": kpi("Dishes with an allergy", sum("lines.conflict")),
     "kpi-fixed": kpi("Fixed by the chef's swaps", sum("lines.allergenRemoved")),
     "kpi-declined": kpi("Declined", sum("orders.declined")),
     declared: {

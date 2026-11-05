@@ -51,7 +51,7 @@ export default function Analytics({ orders, menu, aiEnabled }: { orders: (Order 
           {mode === "view" ? "Edit dashboard" : "Done editing"}
         </button>
       </div>
-      <div style={{ height: 860 }}>
+      <div style={{ height: page === "allergies" ? 1240 : 860 }}>
         <AgStudioProvider licenseKey={process.env.NEXT_PUBLIC_AG_LICENSE_KEY} modules={aiEnabled ? [AgStudioAiModule] : undefined}>
           <AgStudio style={{ height: "100%", width: "100%" }} theme={theme} layout={{ widgetBorderEnabled: true }} data={data} initialState={initial} mode={mode} ai={aiEnabled ? ai : undefined} onApiReady={(e) => (apiRef.current = e.api)} />
         </AgStudioProvider>
