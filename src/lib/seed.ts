@@ -10,6 +10,7 @@ export const SEED_RESTAURANT: Restaurant = {
   city: "Cambridge",
   currency: "GBP",
   signoffMinutes: 10,
+  readyMinutes: 25,
   kitchenNotes:
     "One shared fryer for fish, chips and katsu. Brioche buns are topped with sesame in the same prep area as the plain buns. Satay is marinated on a separate station. Nuts are used in the pastry section.",
 };

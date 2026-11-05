@@ -1,8 +1,8 @@
 // AG Studio theme built from Chef's Nod's design tokens (see globals.css).
 import { studioTheme } from "ag-studio";
 
-// The first four carry the chef's decisions, in the legend's alphabetical order: approved, approved with changes, declined, waiting.
-const PALETTE = ["#1f5a3d", "#6fae86", "#b42318", "#d98a1c", "#5b7f95", "#8e6c9e", "#c9a227", "#3f8f8a", "#9b8f80", "#163f2b"];
+// The first five carry the chef's decisions, in the legend's alphabetical order: approved, approved with changes, declined, expired, waiting.
+const PALETTE = ["#1f5a3d", "#6fae86", "#b42318", "#6b6359", "#d98a1c", "#5b7f95", "#8e6c9e", "#c9a227", "#3f8f8a", "#9b8f80", "#163f2b"];
 
 // Charts cannot read CSS variables, so the caller passes the resolved font family.
 export const chefsNodTheme = (font: string) =>

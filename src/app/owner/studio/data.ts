@@ -50,7 +50,11 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
       one: 1,
     };
   });
-  const lineRows = held.flatMap((o) =>
+  // Chart colours follow the legend's order, so every decision stays in it even with no orders: Declined is always red.
+  for (const outcome of ["Approved", "Approved with changes", "Declined", "Expired", "Waiting for chef"]) {
+    if (orderRows[0] && !orderRows.some((r) => r.outcome === outcome)) orderRows.push({ ...orderRows[0], id: `none-${outcome}`, ref: "", outcome, held: 0, captured: 0, released: 0, nodSeconds: null, allergyOrder: 0, declined: 0, changed: 0, decided: 0, one: 0 } as (typeof orderRows)[number]);
+  }
+    const lineRows = held.flatMap((o) =>
     o.items.map((i) => {
       const dish = menu.find((d) => d.id === i.dishId);
       const allergies = o.party.find((p) => p.name.toLowerCase() === i.forPerson.toLowerCase())?.allergies ?? [];

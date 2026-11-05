@@ -56,8 +56,11 @@ for (const [qty, want] of [[0, 1], [-3, 1], [1000, 20], [1.6, 2], ["abc", 1], [n
   const o = await place(sesameOrder({ items: [{ dishId: "dish_chips", qty, forPerson: "Dan" }] }));
   ok(o?.items[0].qty === want && o.authorizedMinor === 450 * want, `qty ${JSON.stringify(qty)} becomes ${want}`, JSON.stringify(o?.items?.[0]?.qty));
 }
-const junk = await place(sesameOrder({ party: [{ name: "Dan", allergies: ["sesame", "pizza"] }], items: [{ dishId: "dish_chips", qty: 1, forPerson: "Dan" }] }));
-ok(junk && !junk.party[0].allergies.includes("pizza"), "unknown allergen dropped", JSON.stringify(junk?.party));
+ok((await j("POST", "/api/orders", sesameOrder({ party: [{ name: "Dan", allergies: ["sesame", "pizza"] }], items: [{ dishId: "dish_chips", qty: 1, forPerson: "Dan" }] }))).status === 400, "unknown allergen refused, never silently dropped");
+{
+  const o = await place(sesameOrder({ party: [{ name: "Anna", allergies: [] }, { name: "ANNA", allergies: ["sesame"] }], items: [{ dishId: "dish_halloumi", qty: 1, forPerson: "Anna" }] }));
+  ok(o?.party.length === 1 && o.party[0].allergies.includes("sesame") && o.check.risk === "high", "same-named people pool their allergies", JSON.stringify(o?.party));
+}
 const caseO = await place(sesameOrder({ items: [{ dishId: "dish_halloumi", qty: 1, forPerson: "dAN" }] }));
 ok(caseO?.check?.risk === "high", "person match ignores case");
 const stranger = await place(sesameOrder({ items: [{ dishId: "dish_chips", qty: 1, forPerson: "Zed" }] }));

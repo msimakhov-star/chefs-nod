@@ -22,10 +22,10 @@ export default async function Home() {
         <header className="flex items-center justify-between py-6">
           <Brand />
           <nav className="flex gap-5 text-sm text-muted">
-            <Link href={`/r/${r.slug}`} className="hover:text-ink">Order</Link>
-            <Link href="/kitchen" className="hover:text-ink">Kitchen</Link>
-            <Link href="/owner" className="hover:text-ink">Owner</Link>
-            <a href="#agents" className="hidden hover:text-ink sm:inline">For AI agents</a>
+            <Link href={`/r/${r.slug}`} className="inline-flex min-h-11 items-center hover:text-ink">Order</Link>
+            <Link href="/kitchen" className="inline-flex min-h-11 items-center hover:text-ink">Kitchen</Link>
+            <Link href="/owner" className="inline-flex min-h-11 items-center hover:text-ink">Owner</Link>
+            <a href="#agents" className="hidden min-h-11 items-center hover:text-ink sm:inline-flex">For AI agents</a>
           </nav>
         </header>
 
@@ -43,7 +43,7 @@ export default async function Home() {
               <Link href={`/r/${r.slug}`} className="rounded-full bg-basil px-6 py-3 font-medium text-white hover:bg-basil-dark">
                 Order from {r.name}
               </Link>
-              <Link href="/kitchen" className="rounded-full border border-ink/20 px-6 py-3 font-medium hover:border-ink">
+              <Link href="/kitchen" target="_blank" className="rounded-full border border-ink/20 px-6 py-3 font-medium hover:border-ink">
                 Open the kitchen screen
               </Link>
               <Link href="/owner" className="rounded-full px-6 py-3 font-medium text-muted hover:text-ink">
@@ -56,7 +56,7 @@ export default async function Home() {
         </section>
 
         <section className="mb-4 rounded-3xl border border-line bg-paper p-6 sm:p-8">
-          <div className="grid gap-6 md:grid-cols-[1.4fr_1fr]">
+          <div className={`grid gap-6 ${isSimulated() ? "" : "md:grid-cols-[1.4fr_1fr]"}`}>
             <div>
               <h2 className="font-display text-2xl font-semibold">Try it in 60 seconds</h2>
               <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed">
@@ -164,7 +164,7 @@ export default async function Home() {
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-xs text-muted">
           <span>Built for the PayPal AI Hackathon 2026 · PayPal sandbox only, no real money · {r.name} is a fictional restaurant</span>
           <span className="flex gap-4">
-            <a href="/llms.txt" className="hover:text-ink">llms.txt</a>
+            <a href="/llms.txt" className="inline-flex min-h-11 items-center hover:text-ink">llms.txt</a>
             <a href="#agents" className="hover:text-ink">MCP server</a>
           </span>
         </footer>

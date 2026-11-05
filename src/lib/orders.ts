@@ -1,10 +1,10 @@
 import { dishes, events, newId, orders, restaurants } from "./db";
-import { allergenStatement, allergiesFor, findConflicts, risk } from "./conflicts";
-import { kitchenCheck, rulesCheck, translate } from "./agents";
+import { allergenStatement, allergiesFor, findConflicts, mergeParty, risk } from "./conflicts";
+import { cleanLanguage, kitchenCheck, rulesCheck, translate } from "./agents";
 import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, refundCapture, voidHold, PayPalFailure } from "./paypal";
 import { publish } from "./bus";
 import type { ChefDecision, Order, OrderItem, Person } from "./types";
-import { ALLERGEN_IDS } from "./allergens";
+import { ALLERGEN_IDS, type AllergenId } from "./allergens";
 
 export type PlaceOrderInput = {
   restaurantSlug: string;
@@ -34,6 +34,13 @@ async function withLock<T>(orderId: string, fn: () => Promise<T>): Promise<T> {
 
 const UNPAID_MINUTES = 30;
 
+// A PayPal call can take seconds while the AI refines the ticket, so a save never writes an older ticket back.
+const saveOrder = (o: Order) => {
+  const current = orders.get(o.id);
+  if (current) o.check = current.check;
+  orders.save(o);
+};
+
 function log(o: Order, type: string, message: string, data: unknown = null) {
   events.add(o.id, type, message, data);
   publish(o.restaurantId, o.id, type);
@@ -47,7 +54,18 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   const menu = dishes.list(restaurant.id);
   const dishById = (id: string) => menu.find((d) => d.id === id) ?? null;
 
-  const party: Person[] = input.party.map((p) => ({ name: p.name.trim() || "Guest", allergies: [...new Set(p.allergies ?? [])].filter((a) => ALLERGEN_IDS.includes(a)), notes: p.notes?.trim() || "" }));
+  const party: Person[] = mergeParty(
+    input.party.map((p) => ({
+      name: p.name.trim() || "Guest",
+      allergies: (p.allergies ?? []).map((a) => {
+        const id = String(a).trim().toLowerCase() as AllergenId;
+        // Silently dropping "peanut" would turn an allergy order into a standard one.
+        if (!ALLERGEN_IDS.includes(id)) throw new Error(`Unknown allergen "${a}". Use one of: ${ALLERGEN_IDS.join(", ")}`);
+        return id;
+      }),
+      notes: p.notes?.trim() || "",
+    })),
+  );
   const items: OrderItem[] = input.items.map((i) => {
     const d = dishById(i.dishId);
     if (!d || !d.confirmed || !d.available) throw new Error(`Dish ${i.dishId} is not on the confirmed menu`);
@@ -67,7 +85,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
     channel: input.channel,
     agentName: input.agentName ?? null,
     dinerName: String(input.dinerName ?? "").trim() || party[0]?.name || "Guest",
-    language: input.language || "en",
+    language: cleanLanguage(input.language),
     party,
     items,
     status: "awaiting_payment",
@@ -92,7 +110,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   const refine = () =>
     kitchenCheck(order, conflicts, menu, restaurant, statement, riskLevel).then((check) => {
       const latest = orders.get(order.id);
-      if (!latest) return;
+      if (!latest || !["awaiting_payment", "awaiting_chef"].includes(latest.status)) return;
       latest.check = check;
       orders.save(latest);
       publish(latest.restaurantId, latest.id, "check");
@@ -103,7 +121,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
     order.paypalOrderId = pp.paypalOrderId;
     order.authorizationId = pp.authorizationId;
     order.status = "awaiting_chef";
-    orders.save(order);
+    saveOrder(order);
     log(order, "created", `Replay order from ${order.dinerName} for ${fmt(order.authorizedMinor)} (PayPal sandbox test card).`, { conflicts, statement });
     log(order, "authorized", `PayPal is holding ${fmt(order.authorizedMinor)} (authorization ${pp.authorizationId}). Waiting for the chef.`);
     void refine().catch((e) => console.error("kitchen check refine failed", e));
@@ -113,7 +131,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   const pp = await createHeldOrder(order, restaurant, baseUrl);
   order.paypalOrderId = pp.paypalOrderId;
   order.approvalUrl = pp.approvalUrl;
-  orders.save(order);
+  saveOrder(order);
   log(order, "created", `${order.channel === "agent" ? `${order.agentName ?? "An AI agent"} placed` : `${order.dinerName} placed`} an order for ${fmt(order.authorizedMinor)}. Nothing is charged yet.`, { conflicts, statement });
   void refine().catch((e) => console.error("kitchen check refine failed", e));
   return order;
@@ -132,7 +150,7 @@ async function placeHold(orderId: string) {
     const auth = await authorizeHeldOrder(order);
     order.authorizationId = auth.authorizationId;
     order.status = "awaiting_chef";
-    orders.save(order);
+    saveOrder(order);
     log(order, "authorized", `PayPal is holding ${fmt(order.authorizedMinor)}. Waiting for the chef.`, auth);
   } catch (e) {
     // Not approved yet (e.g. the diner came back without approving): keep waiting instead of failing the order.
@@ -143,11 +161,11 @@ async function placeHold(orderId: string) {
     }
     // No clear answer from PayPal: the hold may exist, so keep the order and let the retry with the same request id settle it.
     if (!(e instanceof PayPalFailure) || e.status >= 500) {
-      log(order, "info", "PayPal did not give a clear answer, so this will be tried again.");
+      log(order, "unclear", "PayPal did not give a clear answer, so this will be tried again.");
       throw e;
     }
     order.status = "failed";
-    orders.save(order);
+    saveOrder(order);
     log(order, "error", e instanceof PayPalFailure ? `${e.message}${e.debugId ? ` (debug id ${e.debugId})` : ""}` : String(e));
     throw e;
   }
@@ -180,12 +198,18 @@ async function decide(orderId: string, outcome: ChefDecision["outcome"], applied
   if (!order) throw new Error("Order not found");
   if (order.status !== "awaiting_chef") throw new Error(`This order is ${order.status.replace("_", " ")}, not waiting for the chef`);
   const decision: ChefDecision = { outcome, appliedSwaps: outcome === "approved_with_changes" ? appliedSwaps : [], reason: reason.trim().replace(/\.+$/, ""), decidedAt: new Date().toISOString() };
+  if (order.pendingCapture) {
+    // PayPal may already have taken this money. Only the same decision can be sent again.
+    const same = (x: ChefDecision) => JSON.stringify([x.outcome, [...x.appliedSwaps].map((a) => `${a.itemId}:${a.swapId}`).sort()]);
+    if (same(order.pendingCapture.decision) !== same(decision)) throw new Error("PayPal is still confirming the charge for the first decision, so it can't be changed yet.");
+    return settleCapture(order);
+  }
 
   if (outcome === "declined") {
     await voidHold(order);
     order.status = "voided";
     order.decision = decision;
-    orders.save(order);
+    saveOrder(order);
     log(order, "voided", `Chef declined${decision.reason ? `: "${decision.reason}"` : ""}. The hold was released and nothing was charged.`);
     return order;
   }
@@ -201,45 +225,71 @@ async function decide(orderId: string, outcome: ChefDecision["outcome"], applied
     outcome === "approved_with_changes"
       ? `Chef checked your allergies and changed: ${changes}.${amount < order.authorizedMinor ? ` You pay ${fmt(amount)} instead of ${fmt(order.authorizedMinor)}.` : ""}`
       : "Chef checked the allergies on your order and confirmed it.";
-  const cap = await captureHold(order, amount, note);
+  order.pendingCapture = { amountMinor: amount, note, changes, decision };
+  saveOrder(order);
+  return settleCapture(order);
+}
+
+/** Sends the capture recorded in pendingCapture. A lost response keeps it, so the same request id can be retried and the money is never lost track of. */
+async function settleCapture(order: Order) {
+  const p = order.pendingCapture!;
+  try {
+    const cap = await captureHold(order, p.amountMinor, p.note);
+    return recordCapture(order, cap.captureId, cap.capturedMinor, cap.status);
+  } catch (e) {
+    if (e instanceof PayPalFailure && e.status < 500) {
+      delete order.pendingCapture; // a definite no: the chef can decide again
+      saveOrder(order);
+    }
+    throw e;
+  }
+}
+
+function recordCapture(order: Order, captureId: string, capturedMinor: number, status: string) {
+  const { decision, changes } = order.pendingCapture!;
+  delete order.pendingCapture;
   order.status = "captured";
-  order.capturedMinor = cap.capturedMinor;
-  order.captureStatus = cap.status;
-  order.captureId = cap.captureId;
+  order.capturedMinor = capturedMinor;
+  order.captureStatus = status;
+  order.captureId = captureId;
   order.decision = decision;
-  orders.save(order);
+  saveOrder(order);
   log(
     order,
     "captured",
-    `Chef ${outcome === "approved" ? "approved" : `approved with changes (${changes})`}. ${fmt(cap.capturedMinor)} charged${cap.capturedMinor < order.authorizedMinor ? `, ${fmt(order.authorizedMinor - cap.capturedMinor)} released` : ""}.`,
-    { note, amount },
+    `Chef ${decision.outcome === "approved" ? "approved" : `approved with changes (${changes})`}. ${fmt(capturedMinor)} charged${capturedMinor < order.authorizedMinor ? `, ${fmt(order.authorizedMinor - capturedMinor)} released` : ""}.`,
+    { amount: capturedMinor },
   );
   return order;
 }
 
-type PayPalResource = { id?: string; status?: string; seller_payable_breakdown?: { total_refunded_amount?: { value?: string } } };
+type PayPalResource = { id?: string; status?: string; amount?: { value?: string }; seller_payable_breakdown?: { total_refunded_amount?: { value?: string } } };
 
 /** A verified PayPal webhook. PayPal is the source of truth, including for things done outside this app. Safe to receive twice. */
 export function onPayPalEvent(orderId: string, type: string, hookId: string, summary: string | undefined, resource: PayPalResource) {
   return withLock(orderId, async () => {
     const order = orders.get(orderId);
     if (!order || events.forOrder(orderId).some((e) => (e.data as { hookId?: string } | null)?.hookId === hookId)) return;
-    log(order, "webhook", `PayPal webhook ${type} verified${summary ? `: ${summary}` : ""}`, { id: resource.id, hookId });
     const change = (status: Order["status"], message: string) => {
       order.status = status;
-      orders.save(order);
+      saveOrder(order);
       log(order, "paypal", message);
     };
+    const captureEvent = type === "PAYMENT.CAPTURE.COMPLETED" || type === "PAYMENT.CAPTURE.PENDING";
     if (type === "CHECKOUT.ORDER.APPROVED") {
-      await placeHold(orderId).catch((e) => console.error("hold from webhook failed", orderId, e)); // the diner may never come back to the return URL
+      await placeHold(orderId); // the diner may never come back to the return URL. A throw answers 500, so PayPal retries.
+    } else if (captureEvent && order.status === "awaiting_chef" && order.pendingCapture && resource.id) {
+      // The capture's response was lost, but PayPal took the money. Adopt what PayPal says happened.
+      const value = Number(resource.amount?.value);
+      recordCapture(order, resource.id, Number.isFinite(value) ? Math.round(value * 100) : order.pendingCapture.amountMinor, type.endsWith("PENDING") ? "PENDING" : "COMPLETED");
     } else if (type === "PAYMENT.AUTHORIZATION.VOIDED" && order.status === "awaiting_chef") {
       change("voided", "PayPal says this hold was voided outside Chef's Nod. The diner is not charged.");
-    } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.PENDING") {
+    } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.PENDING" && order.captureStatus !== "COMPLETED") {
       order.captureStatus = "PENDING";
-      orders.save(order);
+      saveOrder(order);
     } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.COMPLETED") {
       order.captureStatus = "COMPLETED";
-      orders.save(order);
+      saveOrder(order);
     } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.DECLINED") {
       order.capturedMinor = null;
       change("failed", "PayPal declined the capture. The diner was not charged.");
@@ -251,9 +301,11 @@ export function onPayPalEvent(orderId: string, type: string, hookId: string, sum
       if (total > (order.refundedMinor ?? 0)) {
         order.refundedMinor = total;
         if (total >= (order.capturedMinor ?? 0)) order.status = "refunded";
-        orders.save(order);
+        saveOrder(order);
       }
     }
+    // Logged last: a retried delivery of an event that failed above must run again.
+    log(orders.get(orderId)!, "webhook", `PayPal webhook ${type} verified${summary ? `: ${summary}` : ""}`, { id: resource.id, hookId });
   });
 }
 
@@ -268,17 +320,35 @@ export async function expireStale() {
       const o = orders.get(id)!;
       if (o.status === "awaiting_payment") {
         if (now - Date.parse(o.createdAt) < UNPAID_MINUTES * 60_000) return;
+        if (events.forOrder(o.id).some((e) => e.type === "unclear")) {
+          // PayPal may have placed a hold it never told us about. The same request id returns it, so it can be released.
+          try {
+            const auth = await authorizeHeldOrder(o);
+            await voidHold({ ...o, authorizationId: auth.authorizationId });
+          } catch (e) {
+            if (!(e instanceof PayPalFailure) || e.status >= 500) throw e; // still unclear: try again on the next sweep
+          }
+        }
         o.status = "expired";
-        orders.save(o);
+        saveOrder(o);
         log(o, "expired", `Not approved in PayPal within ${UNPAID_MINUTES} minutes. Nothing was held.`);
         return;
       }
       if (o.status !== "awaiting_chef") return;
+      if (o.pendingCapture) return void (await settleCapture(o));
       const authorizedAt = events.forOrder(o.id).find((e) => e.type === "authorized")?.at;
       if (!authorizedAt || now - Date.parse(authorizedAt) < r.signoffMinutes * 60_000) return;
-      await voidHold(o);
+      try {
+        await voidHold(o);
+      } catch (e) {
+        if (!(e instanceof PayPalFailure) || e.status >= 500) throw e;
+        o.status = "failed"; // a definite refusal: stop retrying and show it, instead of voiding forever
+        saveOrder(o);
+        log(o, "error", `PayPal refused to release this hold: ${e.message}`);
+        return;
+      }
       o.status = "expired";
-      orders.save(o);
+      saveOrder(o);
       log(o, "expired", `No answer from the kitchen within ${r.signoffMinutes} minutes. Hold voided automatically, the diner is not charged.`);
     }).catch((e) => console.error("auto-release failed", id, e));
   }
@@ -295,7 +365,7 @@ export function refund(orderId: string, amountMinor: number, reason: string) {
     const r = await refundCapture(order, amountMinor, reason, already);
     order.refundedMinor = already + amountMinor;
     if (amountMinor === left) order.status = "refunded";
-    orders.save(order);
+    saveOrder(order);
     log(order, "refunded", `Refunded ${fmt(amountMinor)}${reason ? `: ${reason}` : ""} (refund ${r.refundId}).`);
     return order;
   });
@@ -309,7 +379,7 @@ export async function dinerMessage(order: Order) {
       en = "Approve the payment in PayPal. It is only a hold: you are charged after the chef confirms your allergies.";
       break;
     case "awaiting_chef":
-      en = "PayPal is holding the money. The chef is reading your allergies now.";
+      en = order.pendingCapture ? "The chef has confirmed your order. PayPal is confirming the charge." : "PayPal is holding the money. The chef is reading your allergies now.";
       break;
     case "captured":
       if (order.captureStatus === "PENDING") {

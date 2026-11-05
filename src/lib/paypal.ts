@@ -145,7 +145,7 @@ export async function createTestCardHold(order: Order, restaurant: Restaurant) {
             invoiceId: `CN-${order.id}`,
             description: `${restaurant.name}: held until the chef signs off (replay, sandbox test card)`,
             amount: { ...money(itemTotal, currency), breakdown: { itemTotal: money(itemTotal, currency) } },
-            items: order.items.map((i) => ({ name: `${i.dishName} (for ${i.forPerson})`.slice(0, 127), unitAmount: money(i.unitPriceMinor, currency), quantity: String(i.qty), sku: i.dishId })),
+            items: order.items.map((i) => ({ name: `${i.dishName} (for ${i.forPerson})`.slice(0, 127), unitAmount: money(i.unitPriceMinor, currency), quantity: String(i.qty), sku: dishes.get(i.dishId)?.paypalProductId ?? i.dishId })),
           },
         ],
         paymentSource: {
@@ -161,8 +161,15 @@ export async function createTestCardHold(order: Order, restaurant: Restaurant) {
   );
   const auth = result.purchaseUnits?.[0]?.payments?.authorizations?.[0];
   if (!result.id || !auth?.id) throw new PayPalFailure("Test-card order returned no authorization", 500, result);
-  if (auth.status !== "CREATED") throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, result);
+  await requireHold(order, auth, result);
   return { paypalOrderId: result.id, authorizationId: auth.id };
+}
+
+/** Anything but a live hold is a failure. A pending one is released first, so it is not left behind. Whether PayPal allows that void is unverified. */
+async function requireHold(order: Order, auth: { id?: string; status?: string }, result: unknown) {
+  if (auth.status === "CREATED") return;
+  if (auth.status === "PENDING") await voidHold({ ...order, authorizationId: auth.id! }).catch((e) => console.error("could not release a pending hold", order.id, e));
+  throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, result);
 }
 
 /** After the diner approves in PayPal: place the hold. Nothing is charged yet. */
@@ -173,7 +180,7 @@ export async function authorizeHeldOrder(order: Order) {
   );
   const auth = result.purchaseUnits?.[0]?.payments?.authorizations?.[0];
   if (!auth?.id) throw new PayPalFailure("Authorize returned no authorization", 500, result);
-  if (auth.status !== "CREATED") throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, result);
+  await requireHold(order, auth, result);
   return { authorizationId: auth.id, status: String(auth.status), expiresAt: auth.expirationTime ?? null };
 }
 

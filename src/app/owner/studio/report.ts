@@ -67,10 +67,10 @@ const allergies: AgPageState = {
       format: { ...title("Conflicts removed with swaps"), style: { scaleLabel: { min: 0, max: 1 }, label: { typography: typo(24, "bold") }, secondaryLabel: { enabled: true, text: "instead of declining", typography: typo(12) } } },
     },
     "dish-conflicts": {
-      type: "column-chart-stacked",
-      dataMapping: { categoryKey: [{ id: "conflicts.dish" }], valueKey: [sum("conflicts.one")], legendKey: [{ id: "conflicts.allergen" }] },
+      type: "bar-chart-grouped",
+      dataMapping: { categoryKey: [{ id: "conflicts.dish" }], valueKey: [sum("conflicts.one")] },
       sort: [{ field: sum("conflicts.one"), direction: "desc" }],
-      format: { ...title("Which dishes trigger sign-offs, by allergen"), style: { theme: { common: { legend: { enabled: true } } } } },
+      format: title("Which dishes trigger sign-offs"),
     },
     pivot: {
       type: "pivot-grid",

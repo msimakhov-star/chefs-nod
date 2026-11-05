@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { AgGridReact } from "ag-grid-react";
@@ -114,9 +114,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
       { headerName: "Held", field: "authorizedMinor", width: 85, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Charged", field: "capturedMinor", width: 90, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Released", width: 90, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Refunded", width: 95, type: "rightAligned", valueGetter: (p) => p.data?.refundedMinor ?? null, valueFormatter: (p) => gbp(p.value) },
       { headerName: "Nod time", width: 85, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
-      { headerName: "PayPal capture", field: "captureId", width: 170, cellClass: "font-mono text-xs" },
     ],
     [],
   );
@@ -131,7 +129,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
         <Kpi label="Captured" value={gbp(capturedTotal)} accent />
         <Kpi label="Released to diners" value={gbp(released)} />
       </div>
-      <p className="-mb-2 text-sm text-muted">Select an order to see its PayPal details or send a refund.</p>
+      <p className="text-sm text-muted">Select an order to see its PayPal details or send a refund.</p>
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
         <AgGridReact<OOrder> onCellKeyDown={(e) => (e.event as KeyboardEvent | undefined)?.key === "Enter" && setSelectedId(e.data?.id ?? null)} theme={gridTheme} domLayout="autoHeight" pagination paginationPageSize={20} paginationPageSizeSelector={false} rowData={orders} columnDefs={cols} getRowId={(p) => p.data.id} onRowClicked={(e) => setSelectedId(e.data?.id ?? null)} animateRows overlayNoRowsTemplate="No orders yet. Place one from the order page." rowSelection={{ mode: "singleRow", enableClickSelection: true, checkboxes: false }} />
       </div>
@@ -146,6 +144,13 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
   const [reason, setReason] = useState("");
   const [msg, setMsg] = useState(order.status === "refunded" ? "Fully refunded through PayPal." : "");
   const [confirming, setConfirming] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => panel.current?.focus(), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [onClose]);
   async function refund() {
     if (!confirming) return setConfirming(true);
     setConfirming(false);
@@ -155,15 +160,16 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
     if (res.ok) onChange();
   }
   return (
-    <div role="dialog" aria-label={`Order details for ${order.dinerName}`} className="fixed inset-y-0 right-0 z-30 w-full max-w-md overflow-y-auto border-l border-line bg-paper p-6 shadow-2xl">
+    <div ref={panel} tabIndex={-1} role="dialog" aria-label={`Order details for ${order.dinerName}`} className="fixed inset-y-0 right-0 z-30 w-full max-w-md overflow-y-auto border-l border-line bg-paper p-6 shadow-2xl">
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <div className="font-display text-lg font-semibold">
             {order.dinerName} · {gbp(order.authorizedMinor)}
           </div>
-          <div className="break-all text-xs text-muted">
-            {order.id} · PayPal order {order.paypalOrderId}
-            {order.captureId && ` · Capture ${order.captureId}`}
+          <div className="mt-1 space-y-0.5 break-all font-mono text-xs text-muted">
+            <div>{order.id}</div>
+            <div>PayPal order {order.paypalOrderId}</div>
+            {order.captureId && <div>Capture {order.captureId}</div>}
           </div>
         </div>
         <button onClick={onClose} aria-label="Close order details" className="grid h-11 w-11 shrink-0 place-items-center text-muted">
@@ -179,14 +185,30 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
             Sign-off record
           </Link>
         )}
-        <span className="text-muted">{order.webhooks} PayPal webhooks verified</span>
+        {order.webhooks > 0 && <span className="text-muted">{order.webhooks} PayPal webhooks verified</span>}
         {!!order.refundedMinor && <span className="text-muted">{gbp(order.refundedMinor)} refunded so far</span>}
       </div>
+      <div className="mt-4 space-y-1 text-sm">
+        {order.party.map((p) => (
+          <div key={p.name}>
+            <span className="font-medium">{p.name}:</span> {p.allergies.length ? p.allergies.map(allergenLabel).join(", ") : "no allergies"}
+            {p.notes ? ` (${p.notes})` : ""}
+          </div>
+        ))}
+        <ul className="pt-2 text-muted">
+          {order.items.map((i) => (
+            <li key={i.id}>
+              {i.qty > 1 && `${i.qty}× `}
+              {i.dishName} for {i.forPerson}
+            </li>
+          ))}
+        </ul>
+      </div>
       {order.status === "captured" && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-sm">Refund</span>
-          <input aria-label="Refund amount in pounds" value={amount} onChange={(e) => (setAmount(e.target.value), setConfirming(false))} className="min-h-11 w-24 rounded-lg border border-[#8f8578] px-2 text-base" />
-          <input aria-label="Reason shown to the diner" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason shown to the diner" className="min-h-11 min-w-0 flex-1 rounded-lg border border-[#8f8578] px-2 text-base" />
+        <div className="mt-4 grid gap-2">
+          <span className="text-sm font-medium">Refund</span>
+          <input aria-label="Refund amount in pounds" value={amount} onChange={(e) => (setAmount(e.target.value), setConfirming(false))} className="min-h-11 w-full rounded-lg border border-[#8f8578] px-2 text-base" />
+          <input aria-label="Reason shown to the diner" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason shown to the diner" className="min-h-11 w-full rounded-lg border border-[#8f8578] px-2 text-base" />
           <button onClick={refund} className="min-h-11 rounded-lg bg-ink px-4 text-sm text-white">
             {confirming ? `Confirm refund of £${Number(amount).toFixed(2)}` : "Refund via PayPal"}
           </button>
@@ -248,7 +270,7 @@ function MenuStudio({ menu, setMenu, reload, aiName, aiEnabled }: { menu: Dish[]
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-        <label className={`flex ${aiEnabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"} items-center gap-4 rounded-2xl border-2 border-dashed border-line bg-paper p-5 hover:border-basil ${busy === "import" ? "animate-pulse" : ""}`}>
+        <label className={`flex ${aiEnabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"} items-center gap-4 rounded-2xl border-2 border-dashed border-line bg-paper p-5 hover:border-basil focus-within:border-basil ${busy === "import" ? "animate-pulse" : ""}`}>
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-basil-soft text-basil">
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M3 8h4l2-3h6l2 3h4v11H3z" strokeLinejoin="round" /><circle cx="12" cy="13" r="3.5" /></svg>
           </div>
@@ -256,16 +278,16 @@ function MenuStudio({ menu, setMenu, reload, aiName, aiEnabled }: { menu: Dish[]
             <div className="font-medium">Import a menu photo</div>
             <div className="text-sm text-muted">{aiEnabled ? `${aiName} reads the dishes and drafts the 14-allergen matrix. Low-confidence rows are flagged for you.` : "Needs an AI key on this server."}</div>
           </div>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && importPhoto(e.target.files[0])} disabled={!!busy || !aiEnabled} />
+          <input type="file" accept="image/*" className="sr-only" onChange={(e) => e.target.files?.[0] && importPhoto(e.target.files[0])} disabled={!!busy || !aiEnabled} />
         </label>
         <button onClick={publish} disabled={!!busy} className="self-center rounded-full border border-basil px-5 py-2.5 text-sm font-medium text-basil disabled:opacity-50">
           {busy === "publish" ? "Syncing…" : "Sync to PayPal catalog"}
         </button>
       </div>
-      <div className="-mt-2 text-sm text-muted">
+      {aiEnabled && <div className="-mt-2 text-sm text-muted">
         No menu to hand?{" "}
         <button
-          disabled={!!busy || !aiEnabled}
+          disabled={!!busy}
           onClick={async () => {
             const blob = await (await fetch("/demo/fennel-room-menu.jpg")).blob();
             importPhoto(new File([blob], "fennel-room-menu.jpg", { type: "image/jpeg" }));
@@ -289,7 +311,7 @@ function MenuStudio({ menu, setMenu, reload, aiName, aiEnabled }: { menu: Dish[]
             </button>
           </>
         )}
-      </div>
+      </div>}
       {msg && (
         <div role="status" className={`rounded-xl px-4 py-3 text-sm ${msgIsError ? "bg-chili-soft text-chili" : "bg-basil-soft text-basil"}`}>
           {msg}
@@ -500,7 +522,7 @@ function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) 
       <div className="flex-1 space-y-3 overflow-y-auto">
         {msgs.length === 0 &&
           SUGGEST.map((s) => (
-            <button key={s} disabled={!aiEnabled} onClick={() => ask(s)} className="block w-full rounded-xl border disabled:opacity-60 border-line bg-cream px-3 py-2 text-left text-sm hover:border-basil">
+            <button key={s} disabled={!aiEnabled} onClick={() => ask(s)} className="block min-h-11 w-full rounded-xl border disabled:opacity-60 border-line bg-cream px-3 py-2 text-left text-sm hover:border-basil">
               {s}
             </button>
           ))}
@@ -520,6 +542,7 @@ function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) 
         ))}
         {busy && <div className="w-28 animate-pulse rounded-2xl bg-cream px-3 py-2 text-sm text-muted">Looking it up…</div>}
       </div>
+      {aiEnabled && (
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -527,11 +550,12 @@ function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) 
         }}
         className="mt-3 flex gap-2"
       >
-        <input disabled={!aiEnabled} aria-label="Ask about your money" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about orders, holds, refunds…" className="min-w-0 flex-1 rounded-full border border-[#8f8578] bg-cream px-4 py-2 text-sm outline-none focus:border-basil" />
+        <input aria-label="Ask about your money" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about orders, holds, refunds…" className="min-w-0 flex-1 rounded-full border border-[#8f8578] bg-cream px-4 py-2 text-sm outline-none focus:border-basil" />
         <button disabled={busy || !q.trim()} className="rounded-full bg-basil px-4 py-2 text-sm text-white disabled:opacity-40">
           Ask
         </button>
       </form>
+      )}
     </div>
   );
 }
@@ -541,9 +565,13 @@ function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) 
 function Settings({ restaurant, simulated }: { restaurant: Restaurant; simulated: boolean }) {
   const [notes, setNotes] = useState(restaurant.kitchenNotes);
   const [minutes, setMinutes] = useState(restaurant.signoffMinutes);
+  const [ready, setReady] = useState(restaurant.readyMinutes ?? 25);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   async function save() {
-    await fetch("/api/owner/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kitchenNotes: notes, signoffMinutes: minutes }) });
+    const res = await fetch("/api/owner/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kitchenNotes: notes, signoffMinutes: minutes, readyMinutes: ready }) }).catch(() => null);
+    setSaveError(!res?.ok);
+    if (!res?.ok) return;
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   }
@@ -562,9 +590,17 @@ function Settings({ restaurant, simulated }: { restaurant: Restaurant; simulated
         </div>
         <p className="mt-1 text-sm text-muted">If nobody nods in time, the PayPal authorization is voided and the diner is told.</p>
       </div>
-      <button onClick={save} className="rounded-full bg-basil px-5 py-2 text-sm font-medium text-white">
+      <div>
+        <label htmlFor="ready-minutes" className="font-medium">Usually ready for collection after the nod</label>
+        <div className="mt-2 flex items-center gap-2">
+          <input id="ready-minutes" type="number" min={5} max={180} value={ready} onChange={(e) => setReady(Number(e.target.value))} className="min-h-11 w-20 rounded-lg border border-[#8f8578] px-2 text-base" /> minutes
+        </div>
+        <p className="mt-1 text-sm text-muted">Shown to the diner once the chef confirms.</p>
+      </div>
+      <button onClick={save} className="min-h-11 rounded-full bg-basil px-5 text-sm font-medium text-white">
         {saved ? "Saved" : "Save"}
       </button>
+      {saveError && <p role="alert" className="text-sm text-chili">That didn&rsquo;t save. Check your connection and try again.</p>}
     </div>
     <DemoTools simulated={simulated} />
     </div>

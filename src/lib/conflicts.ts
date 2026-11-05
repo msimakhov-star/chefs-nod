@@ -29,21 +29,41 @@ export function planSwaps(dish: Dish, allergies: Set<AllergenId>) {
   return { swapIds: chosen, resolvable: left.length === 0 };
 }
 
-const nameKey = (s: string) => s.trim().toLowerCase();
+export const nameKey = (s: string) => s.trim().toLowerCase();
 
-/** Whose allergies apply to an item. A name nobody declared gets everyone's allergies: a typo or an AI's "my son" must never hide one. */
+/** Whose allergies apply to an item. Same-named rows all count, and a name nobody declared gets everyone's: a typo or an AI's "my son" must never hide one. */
 export function allergiesFor(party: Person[], forPerson: string): Set<AllergenId> {
-  const person = party.find((p) => nameKey(p.name) === nameKey(forPerson));
-  return new Set(person ? person.allergies : party.flatMap((p) => p.allergies));
+  const same = party.filter((p) => nameKey(p.name) === nameKey(forPerson));
+  return new Set((same.length ? same : party).flatMap((p) => p.allergies));
 }
 
-/** The AI may add an allergy but never remove one the diner already declared, or drop the person. */
+const joinNotes = (notes: (string | undefined)[]) => [...new Set(notes.map((n) => n?.trim()).filter(Boolean))].join(". ");
+
+/** One row per person: same-named rows (for example "Me" renamed to a name already in the party) pool their allergies and notes. */
+export function mergeParty(party: Person[]): Person[] {
+  const out: Person[] = [];
+  for (const p of party) {
+    const row = out.find((x) => nameKey(x.name) === nameKey(p.name));
+    if (row) {
+      row.allergies = [...new Set([...row.allergies, ...p.allergies])];
+      row.notes = joinNotes([row.notes, p.notes]);
+    } else out.push({ ...p, allergies: [...new Set(p.allergies)] });
+  }
+  return out;
+}
+
+/** The AI may add an allergy but never remove one the diner declared. If it renames or drops someone, their allergies stay in the order. */
 export function keepDeclaredAllergies(declared: Person[], proposed: Person[]): Person[] {
-  const merged = proposed.map((p) => {
-    const before = declared.find((d) => nameKey(d.name) === nameKey(p.name));
-    return before ? { ...p, allergies: [...new Set([...before.allergies, ...p.allergies])], notes: p.notes || before.notes } : p;
+  const known = mergeParty(declared);
+  const named = mergeParty(proposed);
+  const dropped = known.filter((d) => !named.some((p) => nameKey(p.name) === nameKey(d.name)) && (d.allergies.length || d.notes));
+  const merged = named.map((p) => {
+    const before = known.find((d) => nameKey(d.name) === nameKey(p.name));
+    if (before) return { ...p, allergies: [...new Set([...before.allergies, ...p.allergies])], notes: joinNotes([before.notes, p.notes]) };
+    const inherited = dropped.flatMap((d) => d.allergies);
+    return inherited.length ? { ...p, allergies: [...new Set([...p.allergies, ...inherited])], notes: joinNotes([p.notes, "Allergies carried over from the people declared earlier"]) } : p;
   });
-  return [...merged, ...declared.filter((d) => !proposed.some((p) => nameKey(p.name) === nameKey(d.name)))];
+  return [...merged, ...dropped];
 }
 
 export function findConflicts(items: OrderItem[], party: Person[], dishById: (id: string) => Dish | null): Conflict[] {

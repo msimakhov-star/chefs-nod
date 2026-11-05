@@ -1,7 +1,7 @@
 // The whole product in four cards that appear one after another (CSS only; static if reduced motion is on).
 export default function HeroStory() {
   return (
-    <div className="hero-story relative mx-auto w-full max-w-[460px]" aria-label="How an order works, in four steps">
+    <div role="img" className="hero-story relative mx-auto w-full max-w-[460px]" aria-label="How an order works, in four steps">
       {/* 1. The request */}
       <div data-step="1" className="rounded-3xl border border-line bg-paper p-4 shadow-[0_10px_30px_rgba(28,25,23,0.08)]">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Diner, or their AI assistant</div>

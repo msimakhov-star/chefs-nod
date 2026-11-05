@@ -71,7 +71,7 @@ export async function askCopilot(question: string, history: { role: "user" | "as
       inputSchema: z.object({}),
       execute: async () => {
         used.push("chefs_nod_menu");
-        return dishes.list(r.id).map((d) => ({ id: d.id, name: d.name, price: d.priceMinor, contains: d.contains, components: d.components, swaps: d.swaps.map((s) => s.label) }));
+        return dishes.list(r.id).filter((d) => d.confirmed).map((d) => ({ id: d.id, name: d.name, price: d.priceMinor, contains: d.contains, components: d.components, swaps: d.swaps.map((s) => s.label) }));
       },
     }),
   };

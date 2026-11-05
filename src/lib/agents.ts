@@ -2,7 +2,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { aiProvider } from "./ai";
 import { ALLERGEN_IDS, allergenLabel } from "./allergens";
-import { findConflicts, keepDeclaredAllergies, type Conflict } from "./conflicts";
+import { allergiesFor, findConflicts, keepDeclaredAllergies, nameKey, type Conflict } from "./conflicts";
 import { kv } from "./db";
 import type { Dish, KitchenCheck, Order, Person, Restaurant } from "./types";
 
@@ -69,7 +69,7 @@ Write one question per conflicting item (use its itemId). Name the component tha
     });
     if (!output) return fallback;
     const validItem = new Set(order.items.map((i) => i.id));
-    const atRisk = new Set(order.items.filter((i) => order.party.some((p) => p.name.toLowerCase() === i.forPerson.toLowerCase() && (p.allergies.length || p.notes))).map((i) => i.id));
+    const atRisk = new Set(order.items.filter((i) => allergiesFor(order.party, i.forPerson).size || order.party.some((p) => nameKey(p.name) === nameKey(i.forPerson) && p.notes)).map((i) => i.id));
     const questions = output.questions
       .filter((q) => validItem.has(q.itemId) && atRisk.has(q.itemId))
       .map((q) => {
@@ -111,6 +111,8 @@ export const BasketSchema = z.object({
 });
 export type Basket = z.infer<typeof BasketSchema>;
 
+export const cleanLanguage = (l?: string) => (l && /^[a-z]{2,3}(-[a-z0-9]+)*$/i.test(l) ? l : "en");
+
 export async function orderingAssistant(messages: { role: "user" | "assistant"; content: string }[], dishes: Dish[], restaurant: Restaurant, currentParty: Person[]) {
   const { output } = await generateText({
     model: aiProvider().smart,
@@ -131,7 +133,7 @@ People already noted: ${JSON.stringify(currentParty)}`,
   const valid = new Set(dishes.filter((d) => d.confirmed && d.available).map((d) => d.id));
   output.items = output.items.filter((i) => valid.has(i.dishId));
   const party = keepDeclaredAllergies(currentParty, output.party as Person[]).map((p) => ({ ...p, notes: p.notes ?? "" }));
-  const language = /^[a-z]{2,3}(-[a-z0-9]+)*$/i.test(output.language) ? output.language : "en";
+  const language = cleanLanguage(output.language);
   // The model's words can be wrong, so the rules engine's facts always follow them, and dish ids never reach the diner.
   const named = (t: string) => dishes.reduce((s, d) => s.replaceAll(d.id, d.name), t);
   const lines = output.items.map((i, n) => ({ id: `i${n}`, dishId: i.dishId, dishName: dishes.find((d) => d.id === i.dishId)!.name, forPerson: i.forPerson, qty: i.qty, unitPriceMinor: 0 }));

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { allergenLabel } from "@/lib/allergens";
 import { allergensAfter, sourcesOf } from "@/lib/dish";
+import { allergiesFor } from "@/lib/conflicts";
 import type { Dish, Order, Restaurant } from "@/lib/types";
 import { Logo } from "@/components/ui";
 
@@ -36,6 +37,7 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [lastNod, setLastNod] = useState<{ name: string; amount: string; id: string } | null>(null);
   const known = useRef<Set<string>>(new Set());
   const first = useRef(true);
 
@@ -110,6 +112,16 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
           Turn on the new-order sound
         </button>
       )}
+      {lastNod && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 bg-basil-soft px-6 py-2 text-basil">
+          <span className="font-semibold">
+            {lastNod.name}: charged {lastNod.amount}
+          </span>
+          <a href={`/o/${lastNod.id}/record`} target="_blank" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2">
+            Print bag record
+          </a>
+        </div>
+      )}
       <div className="grid flex-1 gap-6 p-6 xl:grid-cols-[1fr_320px]">
         <div aria-live="polite">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-saffron">Needs your nod</h2>
@@ -118,7 +130,7 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
           ) : (
             <div className="grid items-start gap-5 lg:grid-cols-2">
               {waiting.map((o) => (
-                <Ticket key={o.id} order={o} menu={menu} now={now} signoffMinutes={signoffMinutes} onDone={load} />
+                <Ticket key={o.id} order={o} menu={menu} now={now} signoffMinutes={signoffMinutes} onDone={load} onCharged={setLastNod} />
               ))}
             </div>
           )}
@@ -152,7 +164,7 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
                   <div className="flex justify-between text-xs text-white/60">
                     <span>{o.decision?.outcome === "approved_with_changes" ? `changed · held ${gbp(o.authorizedMinor)}` : o.channel === "agent" ? `via ${o.agentName}` : ""}</span>
                     {o.status === "captured" && (
-                      <a href={`/o/${o.id}/record`} target="_blank" className="underline-offset-2 hover:text-white hover:underline">
+                      <a href={`/o/${o.id}/record`} target="_blank" className="inline-flex min-h-11 items-center underline-offset-2 hover:text-white hover:underline">
                         Print bag record
                       </a>
                     )}
@@ -176,7 +188,7 @@ function Stat({ label, value, hot }: { label: string; value: string; hot?: boole
   );
 }
 
-function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; menu: Dish[]; now: number; signoffMinutes: number; onDone: () => void }) {
+function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order: KOrder; menu: Dish[]; now: number; signoffMinutes: number; onDone: () => void; onCharged: (n: { name: string; amount: string; id: string }) => void }) {
   const [swaps, setSwaps] = useState<Record<string, string[]>>({}); // itemId -> swapIds
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -186,7 +198,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
   const [armed, setArmed] = useState(false); // "Nod anyway" takes two taps; any change of swaps disarms it
 
   const dish = (id: string) => menu.find((d) => d.id === id);
-  const allergiesOf = (name: string) => order.party.find((p) => p.name.toLowerCase() === name.toLowerCase())?.allergies ?? [];
+  const allergiesOf = (name: string) => [...allergiesFor(order.party, name)];
   const delta = Object.entries(swaps).reduce((s, [itemId, ids]) => {
     const it = order.items.find((i) => i.id === itemId)!;
     return s + ids.reduce((t, id) => t + (dish(it.dishId)?.swaps.find((w) => w.id === id)?.priceDeltaMinor ?? 0), 0) * it.qty;
@@ -215,8 +227,9 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
     });
     const data = await res.json();
     setBusy(false);
-    if (!res.ok) setError(data.error + (data.paypalDebugId ? ` (PayPal debug id ${data.paypalDebugId})` : ""));
-    else onDone();
+    if (!res.ok) return setError(data.error + (data.paypalDebugId ? ` (PayPal debug id ${data.paypalDebugId})` : ""));
+    if (outcome !== "declined") onCharged({ name: order.dinerName, amount: gbp(data.order?.capturedMinor ?? newTotal), id: order.id });
+    onDone();
   }
 
   return (
@@ -266,7 +279,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
           return (
             <div key={it.id} className="py-3">
               <div className="flex items-baseline justify-between gap-3">
-                <div className="text-[15px]">
+                <div className="text-lg">
                   <span className="font-semibold">
                     {it.qty > 1 && `${it.qty}× `}
                     {it.dishName}
@@ -324,7 +337,12 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
         })}
       </div>
 
-      <div className="sticky bottom-0 border-t border-white/10 bg-[#1d1a17] px-5 py-4">
+      {!declining && (
+        <div className="px-5 pt-3">
+          <input aria-label="Optional note to the diner" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="min-h-11 w-full rounded-lg border border-white/40 bg-black/30 px-3 text-sm outline-none placeholder:text-white/55 focus:border-white/70" />
+        </div>
+      )}
+      <div className={`${declining ? "" : "sticky bottom-0"} border-t border-white/10 bg-[#1d1a17] px-5 py-4`}>
         {!declining ? (
           <>
             {stillContains.length > 0 && (
@@ -332,12 +350,11 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                 Still contains a declared allergen: {stillContains.map((x) => `${x.it.dishName} for ${x.it.forPerson} (${x.left.map(allergenLabel).join(", ")})`).join("; ")}. Only nod if you are sure, or decline.
               </div>
             )}
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="mb-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-white/55 focus:border-white/30" />
             <div className="flex flex-wrap items-center gap-2">
               <button disabled={busy} onClick={() => {
                   if (stillContains.length && !armed) return setArmed(true);
                   decide(changed ? "approved_with_changes" : "approved");
-                }} className={`flex-1 rounded-xl px-4 py-3.5 text-base font-bold disabled:opacity-50 ${stillContains.length ? "border border-saffron bg-transparent text-[#f0b860] hover:bg-saffron/15" : "bg-[#7fd1a0] text-black hover:brightness-105"}`}>
+                }} className={`flex-1 rounded-xl px-4 py-3.5 text-base font-bold disabled:opacity-50 ${stillContains.length && armed ? "bg-saffron text-black" : stillContains.length ? "border border-saffron bg-transparent text-[#f0b860] hover:bg-saffron/15" : "bg-[#7fd1a0] text-black hover:brightness-105"}`}>
                 {busy ? "Talking to PayPal…" : stillContains.length && armed ? `Tap again: still contains ${[...new Set(stillContains.flatMap((x) => x.left))].map(allergenLabel).join(", ")}` : `${stillContains.length ? "Nod anyway" : changed ? "Nod with changes" : "Nod"} · charge ${gbp(newTotal)}`}
               </button>
               <button disabled={busy} onClick={() => setDeclining(true)} className="rounded-xl border border-chili/60 px-4 py-3.5 text-sm font-semibold text-[#ff8a80] hover:bg-chili/20">
@@ -356,7 +373,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                 </button>
               ))}
             </div>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Or type a reason" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none" />
+            <input aria-label="Reason for declining" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Or type a reason" className="min-h-11 w-full rounded-lg border border-white/40 bg-black/30 px-3 text-sm outline-none focus:border-white/70" />
             <div className="flex gap-2">
               <button disabled={busy || !reason.trim()} onClick={() => decide("declined")} className="flex-1 rounded-xl bg-chili px-4 py-3 text-sm font-bold text-white disabled:opacity-40">
                 {busy ? "Releasing the hold…" : "Decline and release the hold"}

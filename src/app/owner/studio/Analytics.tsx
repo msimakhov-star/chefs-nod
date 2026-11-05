@@ -41,13 +41,13 @@ export default function Analytics({ orders, menu, aiEnabled }: { orders: (Order 
             ["money", "Money"],
             ["allergies", "Allergies & sign-offs"],
           ].map(([id, label]) => (
-            <button key={id} onClick={() => openPage(id)} className={`rounded-full px-3 py-1 text-xs font-medium ${page === id ? "bg-basil text-white" : "text-muted hover:text-ink"}`}>
+            <button key={id} onClick={() => openPage(id)} className={`min-h-11 rounded-full px-4 text-xs font-medium ${page === id ? "bg-basil text-white" : "text-muted hover:text-ink"}`}>
               {label}
             </button>
           ))}
         </div>
         {aiEnabled && <span className="hidden text-xs text-muted md:inline">Ask the AI assistant to build a chart, or edit the dashboard yourself.</span>}
-        <button onClick={() => setMode((m) => (m === "view" ? "edit" : "view"))} className="rounded-full border border-line px-3 py-1 text-xs font-medium">
+        <button onClick={() => setMode((m) => (m === "view" ? "edit" : "view"))} className="min-h-11 rounded-full border border-line px-4 text-xs font-medium">
           {mode === "view" ? "Edit dashboard" : "Done editing"}
         </button>
       </div>

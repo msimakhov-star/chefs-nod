@@ -44,6 +44,8 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   const [chatError, setChatError] = useState("");
   const [hideConflicts, setHideConflicts] = useState(false);
   const payRef = useRef<HTMLDivElement>(null);
+  const colRef = useRef<HTMLElement>(null);
+  const [colTop, setColTop] = useState(16);
   const [payVisible, setPayVisible] = useState(false);
   const recRef = useRef<{ stop: () => void } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,20 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  // A column taller than the window pins by its bottom edge, so scrolling the page always reaches the PayPal button.
+  useEffect(() => {
+    const el = colRef.current;
+    if (!el) return;
+    const fit = () => setColTop(Math.min(16, window.innerHeight - el.offsetHeight - 16));
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    window.addEventListener("resize", fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, []);
 
   // The phone's basket bar steps aside once the pay card is on screen, so it never competes with the PayPal button.
   useEffect(() => {
@@ -185,7 +201,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
           <div role="tablist" className="flex border-b border-line text-sm">
             {(["assistant", "menu"] as const).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`min-h-11 flex-1 px-4 py-3 font-medium ${tab === t ? "border-b-2 border-basil text-basil" : "text-muted hover:text-ink"}`}>
-                {t === "assistant" ? "Ask the ordering assistant" : "Browse the menu"}
+                {t === "assistant" ? (aiReady ? "Ask the ordering assistant" : "Assistant (off)") : "Browse the menu"}
               </button>
             ))}
           </div>
@@ -301,7 +317,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1.5">
                             <div className="font-medium">{gbp(d.priceMinor)}</div>
-                            <button onClick={() => addDish(d)} aria-label={`Add ${d.name}`} className="min-h-11 min-w-16 rounded-full border border-basil px-4 text-sm font-medium text-basil hover:bg-basil hover:text-white">
+                            <button onClick={() => addDish(d)} aria-label={inBasket ? `Add another ${d.name}, ${inBasket} in basket` : `Add ${d.name}`} className="min-h-11 w-24 rounded-full border border-basil px-4 text-sm font-medium text-basil hover:bg-basil hover:text-white">
                               {inBasket ? `Added · ${inBasket}` : "Add"}
                             </button>
                           </div>
@@ -316,7 +332,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
         </section>
 
         {/* Right: party, basket, statement, pay */}
-        <section className="contents lg:sticky lg:top-4 lg:flex lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:gap-4 lg:self-start lg:overflow-y-auto">
+        <section ref={colRef} style={{ top: colTop }} className="contents lg:sticky lg:flex lg:flex-col lg:gap-4 lg:self-start">
           <div className="order-first rounded-2xl border border-line bg-paper p-5 shadow-sm lg:order-none">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold">Who&rsquo;s eating</h2>
@@ -348,7 +364,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
           <div id="basket" className="scroll-mt-4 rounded-2xl border border-line bg-paper p-5 shadow-sm">
             <h2 className="mb-3 font-display text-lg font-semibold">Basket</h2>
             {lines.length === 0 ? (
-              <p className="text-sm text-muted">Empty. Ask the assistant, or add dishes from the menu.</p>
+              <p className="text-sm text-muted">{aiReady ? "Empty. Ask the assistant, or add dishes from the menu." : "Empty. Add dishes from the menu."}</p>
             ) : (
               <div className="divide-y divide-line">
                 {lines.map((l) => {
@@ -371,8 +387,8 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                             </select>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium">{gbp(d.priceMinor * l.qty)}</span>
+                        <div className="-mt-2.5 flex items-start gap-1">
+                          <span className="pt-3 text-sm font-medium">{gbp(d.priceMinor * l.qty)}</span>
                           <button onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="grid h-11 w-11 place-items-center text-muted hover:text-chili" aria-label={`Remove ${d.name}`}>
                             ✕
                           </button>
@@ -446,9 +462,9 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
         <a href="#basket" className="fixed inset-x-4 bottom-4 z-10 flex items-center justify-between rounded-full bg-basil px-5 py-3 text-white shadow-lg lg:hidden">
           <span className="text-sm">
             {lines.length} item{lines.length > 1 ? "s" : ""}
-            {conflicts.length > 0 && ` · ${conflicts.length} for the chef to check`}
+            {conflicts.length > 0 && ` · ${conflicts.length} to check`}
           </span>
-          <span className="font-semibold">{gbp(total)} · Review</span>
+          <span className="whitespace-nowrap font-semibold">{gbp(total)} · Review</span>
         </a>
       )}
     </div>
@@ -460,7 +476,7 @@ function PersonRow({ person, onChange, onRemove }: { person: Person; onChange: (
   return (
     <div className="rounded-xl border border-line p-3">
       <div className="flex items-center gap-2">
-        <input value={person.name} onChange={(e) => onChange({ ...person, name: e.target.value })} className="min-w-0 flex-1 rounded border-b border-[#8f8578] bg-transparent py-1 text-base font-medium outline-none" aria-label="Name" />
+        <input value={person.name} onChange={(e) => onChange({ ...person, name: e.target.value })} className="min-h-11 min-w-0 flex-1 border-b border-[#8f8578] bg-transparent text-base font-medium outline-none" aria-label="Name" />
         <button aria-expanded={open} onClick={() => setOpen((o) => !o)} className="min-h-11 px-2 text-sm font-medium text-basil">
           {open ? "Done" : "Edit allergies"}
         </button>

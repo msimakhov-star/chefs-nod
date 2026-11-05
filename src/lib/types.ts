@@ -35,6 +35,7 @@ export type Restaurant = {
   city: string;
   currency: string;
   signoffMinutes: number;
+  readyMinutes?: number; // owner's usual time from the chef's nod to collection
   kitchenNotes: string; // shared fryer etc., used by the sign-off agent
 };
 
@@ -86,6 +87,7 @@ export type Order = {
   authorizedMinor: number;
   capturedMinor: number | null;
   captureStatus?: string; // PayPal's status when it is not plainly COMPLETED
+  pendingCapture?: { amountMinor: number; note: string; changes: string; decision: ChefDecision }; // sent to PayPal, answer not yet known
   refundedMinor?: number;
   currency: string;
   paypalOrderId: string | null;

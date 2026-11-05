@@ -33,7 +33,7 @@ export function AllergenChip({ id, tone = "neutral", small }: { id: string; tone
     mayConflict: "bg-chili-soft text-chili border-chili/40 border-dashed font-semibold",
     ok: "bg-basil-soft text-basil border-basil/30",
   };
-  return <span className={`inline-flex items-center rounded-full border ${small ? "px-1.5 py-0 text-[11px]" : "px-2 py-0.5 text-xs"} ${tones[tone]}`}>{{ neutral: "", ok: "", conflict: "Allergy: ", may: "may contain ", mayConflict: "Allergy risk: " }[tone]}{allergenLabel(id)}</span>;
+  return <span className={`inline-flex items-center rounded-full border ${small ? "px-2 py-0.5 text-[13px]" : "px-2 py-0.5 text-xs"} ${tones[tone]}`}>{{ neutral: "", ok: "", conflict: "Allergy: ", may: "may contain ", mayConflict: "Allergy risk: " }[tone]}{allergenLabel(id)}</span>;
 }
 
 const STATUS: Record<OrderStatus, { label: string; cls: string }> = {

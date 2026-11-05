@@ -77,7 +77,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
 
         {order.status === "captured" && (
           <p className="mt-4 rounded-xl bg-basil-soft px-4 py-3 text-basil">
-            {order.captureStatus === "PENDING" ? "PayPal is still processing the charge. " : ""}Collect from {restaurant.name}, {restaurant.city}. Your allergen record goes in the bag.
+            {order.captureStatus === "PENDING" ? "PayPal is still processing the charge. " : ""}Collect from {restaurant.name}, {restaurant.city}.{restaurant.readyMinutes ? ` Usually ready about ${restaurant.readyMinutes} minutes after the chef\u2019s nod.` : ""} Your allergen record goes in the bag.
           </p>
         )}
         {order.status === "awaiting_chef" && <p className="mt-4 rounded-xl bg-saffron-soft px-4 py-3 text-[#8a5a10]">If the kitchen doesn&rsquo;t answer within {restaurant.signoffMinutes} minutes, the hold is released and you pay nothing.</p>}
@@ -89,11 +89,11 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
 
         <ol className="mt-8 grid grid-cols-4 gap-2">
           {STEPS.map((s, i) => {
-            const state = i < idx || (i === 3 && final) ? "done" : i === idx ? "now" : "todo";
+            const state = i < idx || (i === 3 && (final || order.status === "refunded")) ? "done" : i === idx ? "now" : "todo";
             return (
               <li key={s.key} className="flex flex-col gap-2">
                 <div className={`h-1.5 rounded-full ${state === "done" ? (i === 3 && final === "released" ? "bg-muted" : "bg-basil") : state === "now" ? "animate-pulse bg-saffron" : "bg-line"}`} />
-                <span className={`text-xs ${state === "todo" ? "text-muted" : "font-medium"}`}>{i === 3 && final === "released" ? "Released, not charged" : s.label}</span>
+                <span className={`text-xs ${state === "todo" ? "text-muted" : "font-medium"}`}>{i === 3 && final === "released" ? "Released, not charged" : i === 3 && order.status === "refunded" ? `Refunded ${gbp(order.refundedMinor)}` : i === 3 && order.status === "captured" ? `Charged ${gbp(order.capturedMinor)}` : s.label}</span>
               </li>
             );
           })}
@@ -101,8 +101,8 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
 
         <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
           <Money label={order.status === "awaiting_chef" ? "Held by PayPal" : "Was held"} value={order.status === "awaiting_payment" ? "–" : gbp(order.authorizedMinor)} />
-          <Money label="Charged" value={order.status === "captured" ? gbp(order.capturedMinor) : order.status === "awaiting_chef" ? "Not yet" : "£0.00"} strong={order.status === "captured"} />
-          <Money label="Released to you" value={order.status === "captured" ? gbp(order.authorizedMinor - (order.capturedMinor ?? 0)) : final === "released" ? gbp(order.authorizedMinor) : "–"} />
+          <Money label="Charged" value={order.status === "captured" || order.status === "refunded" ? gbp(order.capturedMinor) : order.status === "awaiting_chef" ? "Not yet" : "£0.00"} strong={order.status === "captured"} />
+          <Money label={order.status === "refunded" ? "Refunded" : "Released to you"} value={order.status === "refunded" ? gbp(order.refundedMinor) : order.status === "captured" ? gbp(order.authorizedMinor - (order.capturedMinor ?? 0)) : final === "released" ? gbp(order.authorizedMinor) : "–"} />
         </div>
       </div>
 
@@ -167,7 +167,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
           </ol>
           {order.paypalOrderId && (
             <details className="mt-4 rounded-lg bg-cream p-3 text-xs text-muted">
-              <summary className="cursor-pointer font-medium">PayPal references</summary>
+              <summary className="-my-3 cursor-pointer py-3 font-medium">PayPal references</summary>
               <div className="mt-2 space-y-0.5 break-all font-mono">
                 <div>Order (intent AUTHORIZE): {order.paypalOrderId}</div>
                 {order.authorizationId && <div>Authorization: {order.authorizationId}</div>}
@@ -183,7 +183,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
 
 function Money({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="rounded-2xl bg-cream px-3 py-3 sm:px-4">
+    <div className="flex flex-col justify-between rounded-2xl bg-cream px-3 py-3 sm:px-4">
       <div className="text-xs text-muted">{label}</div>
       <div className={`font-display text-lg sm:text-2xl ${strong ? "font-semibold text-basil" : ""}`}>{value}</div>
     </div>
