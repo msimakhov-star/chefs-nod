@@ -23,7 +23,7 @@ const apiErr = (status: number, issue: string) => {
   return e;
 };
 
-type Modes = { authLost?: boolean; authStatus?: string; authDelay?: number; capLost?: boolean; capStatus?: string; capRefused?: number; capValue?: string; voidRefused?: boolean; refundStatus?: string; found?: { id: string; status: string; amount: { value: string } } };
+type Modes = { authLost?: boolean; authStatus?: string; authDelay?: number; capLost?: boolean; capStatus?: string; capRefused?: number; capValue?: string; capDelay?: number; voidRefused?: boolean; refundStatus?: string; found?: { id: string; status: string; amount: { value: string } } };
 let m: Modes = {};
 const holds = new Set<string>();
 const voided = new Set<string>();
@@ -46,6 +46,7 @@ let n = 0;
   payments: {
     captureAuthorizedPayment: async ({ paypalRequestId, body }: { paypalRequestId: string; body: { amount: { value: string } } }) => {
       sent.key = paypalRequestId;
+      if (m.capDelay) await sleep(m.capDelay);
       if (m.capRefused) throw apiErr(m.capRefused, "REFUSED");
       if (m.capValue) return { result: { id: `CAP-${++n}`, status: "COMPLETED", amount: { value: m.capValue } } };
       if (m.capStatus) return { result: { id: `CAP-${++n}`, status: m.capStatus, amount: body.amount } };
@@ -289,6 +290,19 @@ const dueNow = (id: string) => {
   assert.equal(sent.key, undefined, "the sweep waits for the back-off");
   m = {};
   assert.ok(key);
+}
+
+// While a capture is in flight it is already on record, and a second tap can't race it.
+{
+  const id = await held();
+  m = { capDelay: 60 };
+  const first = chefDecides(id, "approved", [], "");
+  await sleep(15);
+  assert.equal(st(id).pendingCapture?.amountMinor, 1350);
+  await fails(() => chefDecides(id, "declined", [], "second tap"), /already being processed/);
+  await first;
+  m = {};
+  assert.equal(st(id).status, "captured");
 }
 
 // A capture webhook beats anything else the app believed.

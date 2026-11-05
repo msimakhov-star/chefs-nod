@@ -184,6 +184,10 @@ const tools = (await mcp(2, "tools/list", {})).result?.tools?.map((t) => t.name)
 ok(JSON.stringify(tools) === JSON.stringify(["check_allergies", "get_menu", "get_order_status", "place_order"]), "four tools listed", JSON.stringify(tools));
 const chk = await call("check_allergies", { party: [{ name: "Dan", allergies: ["sesame"] }], items: [{ dish_id: "dish_halloumi", for_person: "Dan" }] });
 ok(chk.parsed.conflicts[0].swaps_that_remove_it.length === 2, "check_allergies names both swaps");
+{
+  const bad = await mcp(9, "tools/call", { name: "check_allergies", arguments: { party: [{ name: "Dan", allergies: ["sesame"] }], items: [{ dish_id: "dish_nope", for_person: "Dan" }] } });
+  ok(bad.result?.isError === true, "check_allergies refuses a mistyped dish instead of an all-clear", JSON.stringify(bad).slice(0, 160));
+}
 ok(/No dish is certified safe/.test(chk.parsed.reminder), "reminder says nothing is certified");
 const placed = await call("place_order", { diner_name: "Anna", agent_name: "Claude", party: [{ name: "Dan", allergies: ["sesame"] }], items: [{ dish_id: "dish_halloumi", qty: 1, for_person: "Dan" }] });
 ok(placed.parsed?.approval_url && placed.parsed.allergen_statement.length === 1 && /approve/i.test(placed.parsed.next_step), "place_order returns link and statement");
