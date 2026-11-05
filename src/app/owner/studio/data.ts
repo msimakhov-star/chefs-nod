@@ -6,8 +6,9 @@ import type { Dish, Order } from "@/lib/types";
 
 type FieldSpec = [id: string, name: string, format: AgFormat, hide?: boolean];
 const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+const INT = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
 const fields = (specs: FieldSpec[]): AgFieldDefinition[] =>
-  specs.map(([id, name, format, hide]) => ({ id, name, format, ...(hide && { hide }), ...(format === "currencyFormat" && { formatOptions: { format: GBP } }) }));
+  specs.map(([id, name, format, hide]) => ({ id, name, format, ...(hide && { hide }), ...(format === "currencyFormat" && { formatOptions: { format: GBP } }), ...(format === "integerFormat" && { formatOptions: { format: INT } }) }));
 const manyToOne = (id: string, source: string, target: string): AgRelationDefinition => {
   const [st, sf] = source.split(".");
   const [tt, tf] = target.split(".");

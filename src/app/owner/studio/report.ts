@@ -22,8 +22,8 @@ const money: AgPageState = {
     "kpi-released": kpi("Released to diners", sum("orders.released"), "calendar::day"),
     "kpi-nod": kpi("Average seconds to nod", avg("orders.nodSeconds")),
     "held-vs-captured": {
-      type: "combo-chart-grouped-column-line",
-      dataMapping: { categoryKey: [{ id: "calendar::day" }], valueKey: [sum("orders.held"), sum("orders.captured")], secondaryValueKey: [] },
+      type: "column-chart-grouped",
+      dataMapping: { categoryKey: [{ id: "calendar::day" }], valueKey: [sum("orders.held"), sum("orders.captured")] },
       format: { ...title("Held and captured by day"), style: { theme: { common: { legend: { enabled: true } } } } },
     },
     "capture-rate": {
