@@ -15,13 +15,26 @@ export function isStaff(header: string | null, cookie: string | undefined) {
   return (!!header && same(header, key)) || (!!cookie && same(cookie, staffCookie()));
 }
 
-// ponytail: one in-memory counter per server. Enough with a long generated key; a shared store if this ever runs on several.
-const wrong = { n: 0, reset: 0 };
-export function checkKey(given: string): "ok" | "wrong" | "locked" {
-  const now = Date.now();
-  if (now > wrong.reset) Object.assign(wrong, { n: 0, reset: now + 15 * 60_000 });
-  if (wrong.n >= 20) return "locked";
+// ponytail: in-memory, per address, per server. A spoofed address can dodge its own lock but cannot lock anyone else out; the long generated key covers guessing.
+const g = globalThis as unknown as { __staffWrong?: Map<string, { n: number; reset: number }> };
+const wrong = (g.__staffWrong ??= new Map());
+const LIMIT = 20;
+
+export function lockedOut(ip: string) {
+  const w = wrong.get(ip);
+  return !!w && w.reset > Date.now() && w.n >= LIMIT;
+}
+
+export function noteWrongKey(ip: string) {
+  if (wrong.size > 10_000) wrong.clear();
+  const w = wrong.get(ip);
+  if (!w || w.reset < Date.now()) wrong.set(ip, { n: 1, reset: Date.now() + 15 * 60_000 });
+  else w.n++;
+}
+
+export function checkKey(given: string, ip: string): "ok" | "wrong" | "locked" {
+  if (lockedOut(ip)) return "locked";
   if (process.env.STAFF_KEY && same(given, process.env.STAFF_KEY)) return "ok";
-  wrong.n++;
+  noteWrongKey(ip);
   return "wrong";
 }

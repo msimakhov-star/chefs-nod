@@ -114,7 +114,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
       { headerName: "Held", field: "authorizedMinor", width: 85, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Charged", field: "capturedMinor", width: 90, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Released", width: 90, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Nod time", width: 85, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
+      { headerName: "Nod time", width: 100, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
     ],
     [],
   );
@@ -145,7 +145,11 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
   const [msg, setMsg] = useState(order.status === "refunded" ? "Fully refunded through PayPal." : "");
   const [confirming, setConfirming] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => panel.current?.focus(), []);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    panel.current?.focus();
+    return () => before?.focus();
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     addEventListener("keydown", onKey);
@@ -164,7 +168,7 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <div className="font-display text-lg font-semibold">
-            {order.dinerName} · {gbp(order.authorizedMinor)}
+            {order.dinerName} · {order.capturedMinor != null ? `charged ${gbp(order.capturedMinor)}` : `held ${gbp(order.authorizedMinor)}`}
           </div>
           <div className="mt-1 space-y-0.5 break-all font-mono text-xs text-muted">
             <div>{order.id}</div>
@@ -206,7 +210,7 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
       </div>
       {order.status === "captured" && (
         <div className="mt-4 grid gap-2">
-          <span className="text-sm font-medium">Refund</span>
+          <span className="text-sm font-medium">Refund amount, £</span>
           <input aria-label="Refund amount in pounds" value={amount} onChange={(e) => (setAmount(e.target.value), setConfirming(false))} className="min-h-11 w-full rounded-lg border border-[#8f8578] px-2 text-base" />
           <input aria-label="Reason shown to the diner" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason shown to the diner" className="min-h-11 w-full rounded-lg border border-[#8f8578] px-2 text-base" />
           <button onClick={refund} className="min-h-11 rounded-lg bg-ink px-4 text-sm text-white">
@@ -516,7 +520,7 @@ function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) 
     setBusy(false);
   }
   return (
-    <div className="flex flex-col rounded-2xl border border-line bg-paper p-5 lg:row-span-2">
+    <div className={`flex flex-col rounded-2xl border border-line bg-paper p-5 ${aiEnabled ? "lg:row-span-2" : ""}`}>
       <h3 className="font-display text-lg font-semibold">Ask about your money</h3>
       <p className="mb-3 text-sm text-muted">{aiEnabled ? "" : "Needs an AI key on this server. "}{aiName} answers from Chef&rsquo;s Nod&rsquo;s records and PayPal&rsquo;s own MCP server. It can look things up; only you can move money.</p>
       <div className="flex-1 space-y-3 overflow-y-auto">

@@ -1,7 +1,7 @@
 import { dishes, events, newId, orders, restaurants } from "./db";
 import { allergenStatement, allergiesFor, findConflicts, mergeParty, risk } from "./conflicts";
 import { cleanLanguage, kitchenCheck, rulesCheck, translate } from "./agents";
-import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, refundCapture, voidHold, PayPalFailure } from "./paypal";
+import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, definiteNo, findCapture, refundCapture, voidHold, PayPalFailure } from "./paypal";
 import { publish } from "./bus";
 import type { ChefDecision, Order, OrderItem, Person } from "./types";
 import { ALLERGEN_IDS, type AllergenId } from "./allergens";
@@ -160,10 +160,12 @@ async function placeHold(orderId: string) {
       return order;
     }
     // No clear answer from PayPal: the hold may exist, so keep the order and let the retry with the same request id settle it.
-    if (!(e instanceof PayPalFailure) || e.status >= 500) {
+    if (!definiteNo(e)) {
       log(order, "unclear", "PayPal did not give a clear answer, so this will be tried again.");
       throw e;
     }
+    // A hold PayPal would not confirm, and could not be released, stays on the record so it can be found.
+    order.authorizationId = ((e as PayPalFailure).detail as { authorizationId?: string } | undefined)?.authorizationId ?? order.authorizationId;
     order.status = "failed";
     saveOrder(order);
     log(order, "error", e instanceof PayPalFailure ? `${e.message}${e.debugId ? ` (debug id ${e.debugId})` : ""}` : String(e));
@@ -238,15 +240,27 @@ async function settleCapture(order: Order) {
     return recordCapture(order, cap.captureId, cap.capturedMinor, cap.status);
   } catch (e) {
     if (e instanceof PayPalFailure && e.status < 500) {
-      delete order.pendingCapture; // a definite no: the chef can decide again
-      saveOrder(order);
+      // A refusal can follow a capture that worked, so ask PayPal before believing it. If this throws, pendingCapture stays and the sweep asks again.
+      const found = await findCapture(order);
+      if (found?.id) return recordCapture(order, found.id, Math.round(Number(found.amount?.value) * 100), String(found.status));
+      if (definiteNo(e)) {
+        delete order.pendingCapture;
+        saveOrder(order);
+        log(order, "error", `PayPal refused the charge: ${e.message}`);
+        throw e;
+      }
     }
+    // Unknown: keep it, and back off so a long PayPal outage is not hammered.
+    p.tries = (p.tries ?? 0) + 1;
+    p.nextTryAt = Date.now() + Math.min(15 * 60_000, 15_000 * 2 ** p.tries);
+    saveOrder(order);
+    if (p.tries === 8) log(order, "error", "PayPal has not confirmed this charge after repeated tries. Check the PayPal dashboard.");
     throw e;
   }
 }
 
 function recordCapture(order: Order, captureId: string, capturedMinor: number, status: string) {
-  const { decision, changes } = order.pendingCapture!;
+  const { decision, changes } = order.pendingCapture ?? { decision: { outcome: "approved" as const, appliedSwaps: [], reason: "", decidedAt: new Date().toISOString() }, changes: "" };
   delete order.pendingCapture;
   order.status = "captured";
   order.capturedMinor = capturedMinor;
@@ -266,6 +280,20 @@ function recordCapture(order: Order, captureId: string, capturedMinor: number, s
 type PayPalResource = { id?: string; status?: string; amount?: { value?: string }; seller_payable_breakdown?: { total_refunded_amount?: { value?: string } } };
 
 /** A verified PayPal webhook. PayPal is the source of truth, including for things done outside this app. Safe to receive twice. */
+export type PayPalHookResource = PayPalResource & { custom_id?: string; invoice_id?: string; purchase_units?: { custom_id?: string }[]; supplementary_data?: { related_ids?: { order_id?: string } } };
+
+/** Which order a PayPal event is about. */
+export function matchOrder(type: string, r: PayPalHookResource) {
+  const custom = r.custom_id ?? r.purchase_units?.[0]?.custom_id;
+  return (
+    (custom && orders.get(custom)) ||
+    (r.invoice_id?.startsWith("CN-") && orders.get(r.invoice_id.slice(3))) ||
+    (r.supplementary_data?.related_ids?.order_id && orders.byPaypalId(r.supplementary_data.related_ids.order_id)) ||
+    (r.id && type.startsWith("CHECKOUT.") && orders.byPaypalId(r.id)) ||
+    null
+  );
+}
+
 export function onPayPalEvent(orderId: string, type: string, hookId: string, summary: string | undefined, resource: PayPalResource) {
   return withLock(orderId, async () => {
     const order = orders.get(orderId);
@@ -278,11 +306,11 @@ export function onPayPalEvent(orderId: string, type: string, hookId: string, sum
     const captureEvent = type === "PAYMENT.CAPTURE.COMPLETED" || type === "PAYMENT.CAPTURE.PENDING";
     if (type === "CHECKOUT.ORDER.APPROVED") {
       await placeHold(orderId); // the diner may never come back to the return URL. A throw answers 500, so PayPal retries.
-    } else if (captureEvent && order.status === "awaiting_chef" && order.pendingCapture && resource.id) {
-      // The capture's response was lost, but PayPal took the money. Adopt what PayPal says happened.
+    } else if (captureEvent && order.status !== "captured" && order.status !== "refunded" && resource.id) {
+      // PayPal took the money, whatever this app thought. PayPal's record wins: a diner must never read "not charged" after being charged.
       const value = Number(resource.amount?.value);
-      recordCapture(order, resource.id, Number.isFinite(value) ? Math.round(value * 100) : order.pendingCapture.amountMinor, type.endsWith("PENDING") ? "PENDING" : "COMPLETED");
-    } else if (type === "PAYMENT.AUTHORIZATION.VOIDED" && order.status === "awaiting_chef") {
+      recordCapture(order, resource.id, Number.isFinite(value) ? Math.round(value * 100) : order.pendingCapture?.amountMinor ?? order.authorizedMinor, type.endsWith("PENDING") ? "PENDING" : "COMPLETED");
+    } else if (type === "PAYMENT.AUTHORIZATION.VOIDED" && order.status === "awaiting_chef" && !order.pendingCapture) {
       change("voided", "PayPal says this hold was voided outside Chef's Nod. The diner is not charged.");
     } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.PENDING" && order.captureStatus !== "COMPLETED") {
       order.captureStatus = "PENDING";
@@ -324,9 +352,16 @@ export async function expireStale() {
           // PayPal may have placed a hold it never told us about. The same request id returns it, so it can be released.
           try {
             const auth = await authorizeHeldOrder(o);
-            await voidHold({ ...o, authorizationId: auth.authorizationId });
+            o.authorizationId = auth.authorizationId;
+            await voidHold(o);
           } catch (e) {
-            if (!(e instanceof PayPalFailure) || e.status >= 500) throw e; // still unclear: try again on the next sweep
+            if (!definiteNo(e)) throw e; // still unclear: try again on the next sweep
+            if (o.authorizationId) {
+              o.status = "failed";
+              saveOrder(o);
+              log(o, "error", `PayPal still holds ${fmt(o.authorizedMinor)} and refused to release it: ${(e as Error).message}`);
+              return;
+            }
           }
         }
         o.status = "expired";
@@ -335,16 +370,31 @@ export async function expireStale() {
         return;
       }
       if (o.status !== "awaiting_chef") return;
-      if (o.pendingCapture) return void (await settleCapture(o));
+      if (o.pendingCapture) {
+        if (now < (o.pendingCapture.nextTryAt ?? 0)) return;
+        try {
+          await settleCapture(o);
+        } catch (e) {
+          if (!definiteNo(e)) throw e;
+          // PayPal refused the charge the chef approved. Release the hold and say so, rather than asking the chef again or timing out silently.
+          await voidHold(o).catch((v) => console.error("void after refused capture failed", o.id, v));
+          o.status = "failed";
+          saveOrder(o);
+          log(o, "error", "PayPal refused the charge, so the hold was released.");
+        }
+        return;
+      }
       const authorizedAt = events.forOrder(o.id).find((e) => e.type === "authorized")?.at;
       if (!authorizedAt || now - Date.parse(authorizedAt) < r.signoffMinutes * 60_000) return;
       try {
         await voidHold(o);
       } catch (e) {
-        if (!(e instanceof PayPalFailure) || e.status >= 500) throw e;
+        if (!definiteNo(e)) throw e;
+        const found = await findCapture(o);
+        if (found?.id) return void recordCapture(o, found.id, Math.round(Number(found.amount?.value) * 100), String(found.status)); // it was captured after all
         o.status = "failed"; // a definite refusal: stop retrying and show it, instead of voiding forever
         saveOrder(o);
-        log(o, "error", `PayPal refused to release this hold: ${e.message}`);
+        log(o, "error", `PayPal refused to release this hold: ${(e as Error).message}`);
         return;
       }
       o.status = "expired";
@@ -364,6 +414,7 @@ export function refund(orderId: string, amountMinor: number, reason: string) {
     if (amountMinor > left) throw new Error(`Only ${fmt(left)} is left to refund`);
     const r = await refundCapture(order, amountMinor, reason, already);
     order.refundedMinor = already + amountMinor;
+    order.refundStatus = r.status;
     if (amountMinor === left) order.status = "refunded";
     saveOrder(order);
     log(order, "refunded", `Refunded ${fmt(amountMinor)}${reason ? `: ${reason}` : ""} (refund ${r.refundId}).`);
@@ -398,7 +449,7 @@ export async function dinerMessage(order: Order) {
       en = order.authorizationId ? "The kitchen did not answer in time, so the hold was released. You were not charged." : "This order was not approved in PayPal in time, so it has expired. You were not charged.";
       break;
     case "refunded":
-      en = "Your payment was refunded.";
+      en = order.refundStatus === "PENDING" ? "Your refund is on its way. PayPal is still processing it." : "Your payment was refunded.";
       break;
     default:
       en = "Something went wrong with this order. You were not charged.";

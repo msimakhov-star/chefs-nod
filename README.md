@@ -4,20 +4,26 @@
 
 AI assistants can order food for someone with an allergy. PayPal holds the money until the chef has read the allergy and said yes (capture), yes with changes (a lower partial capture), or no (void).
 
-Built for the PayPal AI Hackathon 2026. Runs on the PayPal sandbox; no real money moves. The demo restaurant, Juniper & Ash, is fictional.
+Built for the PayPal AI Hackathon 2026. PayPal sandbox only; no real money moves. The demo restaurant, Juniper & Ash, is fictional.
 
 ## Why
 
-About 2.4 million UK adults have a clinically confirmed food allergy. Many people order food for others, such as children or elderly parents. When ordering remotely, 47% of people with a food hypersensitivity said they received written allergen information. Current AI assistants cannot guarantee a dish is free of allergens. Decisions regarding cross-contact, shared fryers, and recipe swaps must be made by the kitchen.
+About 2.4 million UK adults have a clinically confirmed food allergy. When ordering food remotely, 47% of adults with a food hypersensitivity said they received written allergen information. Food Standards Agency guidance for England, Wales and Northern Ireland says allergen information must be provided before purchase and again at delivery. However, AI assistants cannot guarantee safety because cross-contact and recipe swaps are decisions only a kitchen can make.
 
-Food sold online or by phone requires allergen information before purchase and at delivery. Chef's Nod provides a sign-off workflow for independent restaurants. It does not provide a compliance guarantee or certify ingredients. The chef makes the final decision on every order.
+Chef's Nod provides a sign-off workflow for independent restaurants. It does not guarantee safety or provide certification. The app allows diners to see specific allergen statements for every dish. The chef makes the final decision on all substitutions and risks.
 
 Sources: [University of Manchester on the FSA PAFA report](https://www.manchester.ac.uk/about/news/around-6-of-the-uk-adult-population-have-a-food-allergy-new-report-finds/), [FSA consumer survey](https://science.food.gov.uk/article/142308-allergen-information-for-non-prepacked-foods-consumer-experiences-behaviours-and-attitudes), [FSA allergen guidance, section 3.2](https://www.gov.uk/government/publications/allergen-guidance-for-food-businesses/allergen-guidance-for-food-businesses).
 
+## Limits
+
+- This app is for direct orders from independent restaurants only. Delivery platforms are out of scope.
+- No restaurant has used this app yet and no pilot has been conducted.
+- The following points are untested hypotheses: one tap during service may be easier than a phone call for the kitchen, and no refund is needed when no money moved.
+
 ## What it does
 
-- Ordering assistant: The diner speaks or types in any language to specify who is eating and their dietary needs. The AI builds a basket from confirmed dishes and shows the allergen statement for every dish, which the diner ticks as read before paying.
-- PayPal authorization: The app uses PayPal Orders v2 to hold funds without charging the diner. The diner must approve the payment in PayPal to create the order.
+- Ordering assistant: The diner speaks or types to say who is eating and what they cannot have. The AI builds a basket from confirmed dishes and shows the allergen statement for every dish, which the diner ticks as read before paying.
+- PayPal authorization: The app uses PayPal Orders v2 to hold funds without charging the diner. Approving in PayPal places the hold.
 - Kitchen screen: Orders appear live with a chime and a countdown. The AI generates specific questions for the chef and suggests ingredient swaps based on the owner's defined rules.
 - Chef decision: The chef can approve the order, approve with a lower price and a note, or decline the order. If no response occurs within 10 minutes, the payment hold is voided.
 - Diner updates: The diner's page updates live with translations. The app generates a printable sign-off record with a QR code for the delivery bag.
@@ -70,7 +76,7 @@ Verified PayPal webhooks can move the order too: `CHECKOUT.ORDER.APPROVED` place
 claude mcp add --transport http chefs-nod https://<your-deployment>/api/mcp
 ```
 
-Then ask: "Order dinner from Juniper & Ash for me and Dan. Dan is allergic to sesame."
+Then ask: "Order dinner from Juniper & Ash for me and Dan. Dan is allergic to sesame." Tested with Claude Code; other remote MCP clients have not been tried.
 
 ## Run it locally
 
@@ -91,7 +97,7 @@ PUBLIC_URL=https://<your-deployment> pnpm tsx --env-file=.env.local scripts/regi
 
 ## Stack
 
-Next.js 16, TypeScript, SQLite (`node:sqlite`), Vercel AI SDK, MCP TypeScript SDK, AG Grid and AG Studio, Tailwind CSS, Render.
+Next.js 16, TypeScript, SQLite (`node:sqlite`), Vercel AI SDK, MCP TypeScript SDK, AG Grid and AG Studio, Tailwind CSS. `render.yaml` is a Render blueprint.
 
 ## Licence
 

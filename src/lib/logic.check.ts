@@ -41,6 +41,6 @@ assert.equal(findConflicts([{ ...items[0], forPerson: " dan " }], [{ name: "Dan"
 
 // The AI can add an allergy but never remove one, or drop a person.
 const kept = keepDeclaredAllergies([{ name: "Dan", allergies: ["sesame"] }, { name: "Mum", allergies: ["milk"] }], [{ name: "dan", allergies: ["eggs"] }]);
-assert.deepEqual(kept.map((p) => [p.name.toLowerCase(), [...p.allergies].sort()]), [["dan", ["eggs", "sesame"]], ["mum", ["milk"]]]);
+assert.deepEqual(kept.map((p) => [p.name.toLowerCase(), [...p.allergies].sort()]), [["dan", ["eggs", "milk", "sesame"]], ["mum", ["milk"]]]);
 
 console.log("logic checks passed");

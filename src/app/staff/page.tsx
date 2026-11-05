@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Logo } from "@/components/ui";
 import { checkKey, staffCookie } from "@/lib/staff";
 
@@ -15,7 +15,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   async function enter(form: FormData) {
     "use server";
     const to = safeNext(String(form.get("next")));
-    const result = checkKey(String(form.get("key") ?? ""));
+    const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() || "local";
+    const result = checkKey(String(form.get("key") ?? ""), ip);
     if (result !== "ok") redirect(`/staff?wrong=${result}&next=${encodeURIComponent(to)}`);
     (await cookies()).set("staff", staffCookie(), { httpOnly: true, sameSite: "lax", secure: !!process.env.PUBLIC_URL?.startsWith("https://"), path: "/", maxAge: 60 * 60 * 24 * 7 });
     redirect(to);

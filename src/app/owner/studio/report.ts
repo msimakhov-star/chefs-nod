@@ -20,7 +20,7 @@ const money: AgPageState = {
     "kpi-held": kpi("Held in PayPal", sum("orders.held"), "calendar::day"),
     "kpi-captured": kpi("Captured after sign-off", sum("orders.captured"), "calendar::day"),
     "kpi-released": kpi("Released to diners", sum("orders.released"), "calendar::day"),
-    "kpi-nod": kpi("Average seconds to nod", avg("orders.nodSeconds")),
+    "kpi-nod": kpi("Average time to nod (seconds)", avg("orders.nodSeconds")),
     "held-vs-captured": {
       type: "column-chart-grouped",
       dataMapping: { categoryKey: [{ id: "calendar::day" }], valueKey: [sum("orders.held"), sum("orders.captured")] },
@@ -86,7 +86,7 @@ const allergies: AgPageState = {
     declared: at(0, 7, 14, 18),
     "fix-rate": at(14, 7, 10, 18),
     "dish-conflicts": at(0, 25, 24, 18),
-    pivot: at(0, 43, 24, 20),
+    pivot: at(0, 43, 24, 28),
   },
 };
 

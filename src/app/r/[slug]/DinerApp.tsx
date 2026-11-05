@@ -418,7 +418,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
           {lines.length > 0 && (
             <div ref={payRef} className="rounded-2xl border border-line bg-paper p-5 shadow-sm">
               <h2 className="mb-2 font-display text-lg font-semibold">Allergen information</h2>
-              <p className="mb-3 text-xs text-muted">From the restaurant&rsquo;s confirmed allergen matrix. Shown before you pay, as UK food law expects for remote orders.</p>
+              <p className="mb-3 text-xs text-muted">From the restaurant&rsquo;s confirmed allergen matrix. Shown before you pay, as FSA guidance says for remote orders.</p>
               <ul className="mb-4 space-y-1.5 text-sm">
                 {items.map((i) => {
                   const d = dishById(i.dishId)!;
@@ -492,6 +492,10 @@ function PersonRow({ person, onChange, onRemove }: { person: Person; onChange: (
       </div>
       {open && (
         <div className="mt-3 flex flex-wrap gap-1.5">
+          <label className="mb-1 w-full text-sm font-medium">
+            Anything the kitchen should know
+            <input value={person.notes ?? ""} onChange={(e) => onChange({ ...person, notes: e.target.value })} placeholder="How severe, intolerances, diet" className="mt-1 min-h-11 w-full rounded-lg border border-[#8f8578] bg-cream px-3 text-base font-normal outline-none focus:border-basil" />
+          </label>
           {ALLERGENS.map((a) => {
             const on = person.allergies.includes(a.id);
             return (

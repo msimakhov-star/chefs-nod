@@ -46,7 +46,7 @@ export const SEED_DISHES: Dish[] = [
       c("slaw", "Tahini slaw with mustard", a("sesame", "mustard")),
       c("veg", "Roast pepper and rocket", a()),
     ],
-    mayContain: a(),
+    mayContain: a("sesame"), // plain and sesame buns share a prep area, so taking sesame ingredients out cannot rule it out
     swaps: [
       swap("plain_bun", "Plain sourdough bun instead of sesame brioche", 0, "bun", { name: "Plain sourdough bun", allergens: a("gluten") }),
       swap("no_slaw", "Leave out the tahini slaw", -150, "slaw"),

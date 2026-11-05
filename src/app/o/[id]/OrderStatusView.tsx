@@ -87,6 +87,8 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
           </Link>
         )}
 
+        {order.status === "captured" && !!order.refundedMinor && <p className="mt-4 rounded-xl bg-cream px-4 py-3">PayPal refunded {gbp(order.refundedMinor)} of this charge.</p>}
+
         <ol className="mt-8 grid grid-cols-4 gap-2">
           {STEPS.map((s, i) => {
             const state = i < idx || (i === 3 && (final || order.status === "refunded")) ? "done" : i === idx ? "now" : "todo";
@@ -100,7 +102,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
         </ol>
 
         <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
-          <Money label={order.status === "awaiting_chef" ? "Held by PayPal" : "Was held"} value={order.status === "awaiting_payment" ? "–" : gbp(order.authorizedMinor)} />
+          <Money label={order.status === "awaiting_chef" ? "Held by PayPal" : order.status === "awaiting_payment" ? "PayPal will hold" : "Was held"} value={gbp(order.authorizedMinor)} />
           <Money label="Charged" value={order.status === "captured" || order.status === "refunded" ? gbp(order.capturedMinor) : order.status === "awaiting_chef" ? "Not yet" : "£0.00"} strong={order.status === "captured"} />
           <Money label={order.status === "refunded" ? "Refunded" : "Released to you"} value={order.status === "refunded" ? gbp(order.refundedMinor) : order.status === "captured" ? gbp(order.authorizedMinor - (order.capturedMinor ?? 0)) : final === "released" ? gbp(order.authorizedMinor) : "–"} />
         </div>
@@ -147,7 +149,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
             })}
           </ul>
           {order.status === "captured" && (
-            <Link href={`/o/${order.id}/record`} className="mt-4 inline-block text-sm font-medium text-basil">
+            <Link href={`/o/${order.id}/record`} className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-basil">
               Open the allergen sign-off record →
             </Link>
           )}

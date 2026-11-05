@@ -87,7 +87,8 @@ export type Order = {
   authorizedMinor: number;
   capturedMinor: number | null;
   captureStatus?: string; // PayPal's status when it is not plainly COMPLETED
-  pendingCapture?: { amountMinor: number; note: string; changes: string; decision: ChefDecision }; // sent to PayPal, answer not yet known
+  pendingCapture?: { amountMinor: number; note: string; changes: string; decision: ChefDecision; tries?: number; nextTryAt?: number }; // sent to PayPal, answer not yet known
+  refundStatus?: string; // PayPal's status for the latest refund
   refundedMinor?: number;
   currency: string;
   paypalOrderId: string | null;

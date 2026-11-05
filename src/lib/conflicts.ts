@@ -57,11 +57,11 @@ export function keepDeclaredAllergies(declared: Person[], proposed: Person[]): P
   const known = mergeParty(declared);
   const named = mergeParty(proposed);
   const dropped = known.filter((d) => !named.some((p) => nameKey(p.name) === nameKey(d.name)) && (d.allergies.length || d.notes));
+  const inherited = dropped.flatMap((d) => d.allergies);
   const merged = named.map((p) => {
     const before = known.find((d) => nameKey(d.name) === nameKey(p.name));
-    if (before) return { ...p, allergies: [...new Set([...before.allergies, ...p.allergies])], notes: joinNotes([before.notes, p.notes]) };
-    const inherited = dropped.flatMap((d) => d.allergies);
-    return inherited.length ? { ...p, allergies: [...new Set([...p.allergies, ...inherited])], notes: joinNotes([p.notes, "Allergies carried over from the people declared earlier"]) } : p;
+    const row = before ? { ...p, allergies: [...new Set([...before.allergies, ...p.allergies])], notes: joinNotes([before.notes, p.notes]) } : p;
+    return inherited.length ? { ...row, allergies: [...new Set([...row.allergies, ...inherited])], notes: joinNotes([row.notes, "Allergies carried over from the people declared earlier"]) } : row;
   });
   return [...merged, ...dropped];
 }

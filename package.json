@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check": "tsx src/lib/logic.check.ts && tsx src/lib/money.check.ts"
+    "check": "tsx src/lib/logic.check.ts && tsx src/lib/money.check.ts && tsx src/lib/gate.check.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.87",

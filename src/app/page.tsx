@@ -64,7 +64,7 @@ export default async function Home() {
                   Open the <Link href="/kitchen" target="_blank" className="font-medium text-basil underline-offset-2 hover:underline">kitchen screen</Link> in a second window.
                 </li>
                 <li>
-                  On the <Link href={`/r/${r.slug}`} className="font-medium text-basil underline-offset-2 hover:underline">order page</Link>, {aiName() === "not configured" ? "add the Halloumi burger, then give Me a sesame allergy." : "tap the first example: dinner for someone with a sesame allergy."}
+                  On the <Link href={`/r/${r.slug}`} className="font-medium text-basil underline-offset-2 hover:underline">order page</Link>, {aiName() === "not configured" ? "add the Halloumi burger, then choose Edit allergies and pick Sesame." : "tap the first example: dinner for someone with a sesame allergy."}
                 </li>
                 <li>Approve the hold{isSimulated() ? "" : " in PayPal with the sandbox buyer below"}. You are not charged.</li>
                 <li>In the kitchen, pick the suggested swaps and nod. Watch PayPal capture the lower amount, or decline and watch PayPal void the hold.</li>
@@ -101,7 +101,7 @@ export default async function Home() {
               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-basil">For AI agents</div>
               <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">{r.name} is agent-ready</h2>
               <p className="mt-3 text-[15px] leading-relaxed text-muted">
-                Any assistant that speaks the Model Context Protocol can read the confirmed allergen menu, pre-check a party&rsquo;s allergies and place an order. The person still approves the payment in PayPal, and the chef still signs off the food.
+                An AI assistant with remote MCP support can read the confirmed allergen menu, pre-check a party&rsquo;s allergies and place an order. The person still approves the payment in PayPal, and the chef still signs off the food.
               </p>
               <div className="mt-5 flex items-center gap-2 rounded-xl bg-cream p-3 font-mono text-xs">
                 <span className="min-w-0 flex-1 truncate">{mcpUrl}</span>
@@ -147,7 +147,7 @@ export default async function Home() {
         <section className="mt-6 rounded-3xl bg-basil px-6 py-8 text-white sm:px-10">
           <div className="grid gap-6 md:grid-cols-3">
             <div>
-              <div className="font-display text-xl font-semibold">Built around UK allergen guidance</div>
+              <div className="font-display text-xl font-semibold">Built around FSA allergen guidance</div>
               <p className="mt-2 text-sm text-white/75">For food ordered remotely, allergen information has to be available before the purchase and again at delivery. Chef&rsquo;s Nod shows the confirmed statement before PayPal approval and prints a sign-off record for the bag.</p>
             </div>
             <div>
@@ -165,7 +165,7 @@ export default async function Home() {
           <span>Built for the PayPal AI Hackathon 2026 · PayPal sandbox only, no real money · {r.name} is a fictional restaurant</span>
           <span className="flex gap-4">
             <a href="/llms.txt" className="inline-flex min-h-11 items-center hover:text-ink">llms.txt</a>
-            <a href="#agents" className="hover:text-ink">MCP server</a>
+            <a href="#agents" className="inline-flex min-h-11 items-center hover:text-ink">MCP server</a>
           </span>
         </footer>
       </div>

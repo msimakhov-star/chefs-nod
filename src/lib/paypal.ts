@@ -54,6 +54,9 @@ export class PayPalFailure extends Error {
   }
 }
 
+/** PayPal clearly said no. Anything else (timeouts, 5xx, 401, 409, 429) leaves the outcome unknown. */
+export const definiteNo = (e: unknown) => e instanceof PayPalFailure && (e.status === 400 || e.status === 422);
+
 async function call<T>(label: string, fn: () => Promise<{ result: T }>): Promise<T> {
   try {
     return (await fn()).result;
@@ -169,7 +172,7 @@ export async function createTestCardHold(order: Order, restaurant: Restaurant) {
 async function requireHold(order: Order, auth: { id?: string; status?: string }, result: unknown) {
   if (auth.status === "CREATED") return;
   if (auth.status === "PENDING") await voidHold({ ...order, authorizationId: auth.id! }).catch((e) => console.error("could not release a pending hold", order.id, e));
-  throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, result);
+  throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, { authorizationId: auth.id, result });
 }
 
 /** After the diner approves in PayPal: place the hold. Nothing is charged yet. */
@@ -225,7 +228,15 @@ export async function refundCapture(order: Order, amountMinor: number, noteToPay
       body: { amount: money(amountMinor, order.currency), noteToPayer: noteToPayer.trim().slice(0, 255) || undefined },
     }),
   );
+  if (result.status === "FAILED" || result.status === "CANCELLED") throw new PayPalFailure(`PayPal did not refund the money (status ${result.status})`, 422, result);
   return { refundId: result.id!, status: String(result.status) };
+}
+
+/** What PayPal itself says was captured for this order. Used when a capture's answer was lost or refused. */
+export async function findCapture(order: Order) {
+  if (isSimulated()) return null;
+  const o = await call("Get order", () => sdk().orders.getOrder({ id: order.paypalOrderId! }));
+  return o.purchaseUnits?.[0]?.payments?.captures?.find((c) => c.status === "COMPLETED" || c.status === "PENDING") ?? null;
 }
 
 export async function searchTransactions(startIso: string, endIso: string) {

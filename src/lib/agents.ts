@@ -130,6 +130,11 @@ People already noted: ${JSON.stringify(currentParty)}`,
     messages,
   });
   if (!output) throw new Error("The ordering assistant returned nothing");
+  return finishBasket(output, dishes, currentParty);
+}
+
+/** The model proposes; the rules decide. Unconfirmed dishes go, declared allergies stay, and the rules engine's facts always follow the model's words. */
+export function finishBasket(output: Basket, dishes: Dish[], currentParty: Person[]) {
   const valid = new Set(dishes.filter((d) => d.confirmed && d.available).map((d) => d.id));
   output.items = output.items.filter((i) => valid.has(i.dishId));
   const party = keepDeclaredAllergies(currentParty, output.party as Person[]).map((p) => ({ ...p, notes: p.notes ?? "" }));

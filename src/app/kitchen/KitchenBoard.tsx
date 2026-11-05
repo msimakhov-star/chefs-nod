@@ -37,7 +37,12 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [lastNod, setLastNod] = useState<{ name: string; amount: string; id: string } | null>(null);
+  const [lastNod, setLastNod] = useState<{ name: string; amount: string; id: string; declined?: boolean } | null>(null);
+  useEffect(() => {
+    if (!lastNod) return;
+    const t = setTimeout(() => setLastNod(null), 30_000);
+    return () => clearTimeout(t);
+  }, [lastNod]);
   const known = useRef<Set<string>>(new Set());
   const first = useRef(true);
 
@@ -114,12 +119,12 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
       )}
       {lastNod && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 bg-basil-soft px-6 py-2 text-basil">
-          <span className="font-semibold">
-            {lastNod.name}: charged {lastNod.amount}
-          </span>
-          <a href={`/o/${lastNod.id}/record`} target="_blank" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2">
-            Print bag record
-          </a>
+          <span className="py-2.5 font-semibold">{lastNod.declined ? `${lastNod.name}: declined, hold released` : `${lastNod.name}: charged ${lastNod.amount}`}</span>
+          {!lastNod.declined && (
+            <a href={`/o/${lastNod.id}/record`} target="_blank" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2">
+              Print bag record
+            </a>
+          )}
         </div>
       )}
       <div className="grid flex-1 gap-6 p-6 xl:grid-cols-[1fr_320px]">
@@ -188,7 +193,7 @@ function Stat({ label, value, hot }: { label: string; value: string; hot?: boole
   );
 }
 
-function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order: KOrder; menu: Dish[]; now: number; signoffMinutes: number; onDone: () => void; onCharged: (n: { name: string; amount: string; id: string }) => void }) {
+function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order: KOrder; menu: Dish[]; now: number; signoffMinutes: number; onDone: () => void; onCharged: (n: { name: string; amount: string; id: string; declined?: boolean }) => void }) {
   const [swaps, setSwaps] = useState<Record<string, string[]>>({}); // itemId -> swapIds
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -196,6 +201,10 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [armed, setArmed] = useState(false); // "Nod anyway" takes two taps; any change of swaps disarms it
+  const declineRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (declining) declineRef.current?.scrollIntoView({ block: "nearest" });
+  }, [declining]);
 
   const dish = (id: string) => menu.find((d) => d.id === id);
   const allergiesOf = (name: string) => [...allergiesFor(order.party, name)];
@@ -228,7 +237,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
     const data = await res.json();
     setBusy(false);
     if (!res.ok) return setError(data.error + (data.paypalDebugId ? ` (PayPal debug id ${data.paypalDebugId})` : ""));
-    if (outcome !== "declined") onCharged({ name: order.dinerName, amount: gbp(data.order?.capturedMinor ?? newTotal), id: order.id });
+    onCharged({ name: order.dinerName, amount: gbp(data.order?.capturedMinor ?? newTotal), id: order.id, declined: outcome === "declined" });
     onDone();
   }
 
@@ -292,7 +301,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
                       contains {allergenLabel(a)}
                     </span>
                   ))}
-                  {originalHit.length > 0 && hit.length === 0 && <span className="rounded bg-[#7fd1a0] px-2 py-0.5 text-sm font-semibold text-black">✓ declared {originalHit.map(allergenLabel).join(", ")} removed</span>}
+                  {originalHit.length > 0 && hit.length === 0 && <span className="rounded bg-[#7fd1a0] px-2 py-0.5 text-sm font-semibold text-black">{originalHit.map(allergenLabel).join(", ")} ingredients swapped out</span>}
                   {may.map((a) => (
                     <span key={a} className="rounded bg-saffron/70 px-2 py-0.5 text-sm font-semibold text-black">
                       may contain {allergenLabel(a)}
@@ -301,6 +310,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
                 </div>
               </div>
               {q && <p className="mt-1.5 text-sm leading-relaxed text-white/80">{q.question}</p>}
+              {originalHit.length > 0 && hit.length === 0 && may.length > 0 && <p className="mt-1 text-sm font-semibold text-[#ffd58a]">The ingredients are out. Whether {may.map(allergenLabel).join(", ")} can be kept out of prep is your call.</p>}
               {d && hit.length > 0 && <p className="mt-1 text-sm text-[#ff8a80]">{hit.map((a) => `${allergenLabel(a)} comes from: ${sourcesOf(d, a, chosen).join(", ")}`).join(" · ")}</p>}
               {d && d.swaps.length > 0 && (q || originalHit.length > 0) && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -338,12 +348,16 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
       </div>
 
       {!declining && (
-        <div className="px-5 pt-3">
+        <div className="px-5 py-3">
           <input aria-label="Optional note to the diner" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="min-h-11 w-full rounded-lg border border-white/40 bg-black/30 px-3 text-sm outline-none placeholder:text-white/55 focus:border-white/70" />
         </div>
       )}
       <div className={`${declining ? "" : "sticky bottom-0"} border-t border-white/10 bg-[#1d1a17] px-5 py-4`}>
-        {!declining ? (
+        {order.pendingCapture ? (
+          <div role="status" className="rounded-lg bg-saffron/15 px-3 py-3 text-sm font-semibold text-[#ffd58a]">
+            Your nod is in. PayPal is confirming the {gbp(order.pendingCapture.amountMinor)} charge, so this order can&rsquo;t be changed for now.
+          </div>
+        ) : !declining ? (
           <>
             {stillContains.length > 0 && (
               <div role="alert" className="mb-3 rounded-lg bg-chili/25 px-3 py-2 text-sm leading-relaxed text-[#ffb4ab]">
@@ -364,7 +378,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
             {changed && delta < 0 && <div className="mt-2 text-sm text-white/65">PayPal captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold and closes it. The diner sees the change in their PayPal receipt.</div>}
           </>
         ) : (
-          <div className="space-y-2">
+          <div ref={declineRef} className="space-y-2">
             <div className="text-sm font-semibold">Why? The diner sees this, translated. The hold is released.</div>
             <div className="flex flex-wrap gap-1.5">
               {DECLINE_REASONS.map((r) => (
