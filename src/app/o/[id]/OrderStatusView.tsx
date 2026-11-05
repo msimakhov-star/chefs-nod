@@ -57,7 +57,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
         <div className="text-xs uppercase tracking-[0.14em] text-muted">
           Order {order.id.slice(-6).toUpperCase()} · {order.channel === "agent" ? `placed by ${order.agentName}` : "placed on the web"} for {order.dinerName}
         </div>
-        <h1 className="mt-2 font-display text-3xl font-semibold leading-tight">
+        <h1 aria-live="polite" className="mt-2 font-display text-3xl font-semibold leading-tight">
           {order.status === "awaiting_payment" && "Approve the hold in PayPal"}
           {order.status === "awaiting_chef" && "The chef is checking your allergies"}
           {order.status === "captured" && (order.decision?.outcome === "approved_with_changes" ? "Confirmed, with changes" : "Confirmed by the chef")}
@@ -75,6 +75,18 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
           </a>
         )}
 
+        {order.status === "captured" && (
+          <p className="mt-4 rounded-xl bg-basil-soft px-4 py-3 text-basil">
+            {order.captureStatus === "PENDING" ? "PayPal is still processing the charge. " : ""}Collect from {restaurant.name}, {restaurant.city}. Your allergen record goes in the bag.
+          </p>
+        )}
+        {order.status === "awaiting_chef" && <p className="mt-4 rounded-xl bg-saffron-soft px-4 py-3 text-[#8a5a10]">If the kitchen doesn&rsquo;t answer within {restaurant.signoffMinutes} minutes, the hold is released and you pay nothing.</p>}
+        {final === "released" && (
+          <Link href={`/r/${restaurant.slug}`} className="mt-5 inline-block rounded-full bg-basil px-6 py-3 font-semibold text-white">
+            Choose something else
+          </Link>
+        )}
+
         <ol className="mt-8 grid grid-cols-4 gap-2">
           {STEPS.map((s, i) => {
             const state = i < idx || (i === 3 && final) ? "done" : i === idx ? "now" : "todo";
@@ -87,8 +99,8 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
           })}
         </ol>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Money label="Held by PayPal" value={order.status === "awaiting_payment" ? "–" : gbp(order.authorizedMinor)} />
+        <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
+          <Money label={order.status === "awaiting_chef" ? "Held by PayPal" : "Was held"} value={order.status === "awaiting_payment" ? "–" : gbp(order.authorizedMinor)} />
           <Money label="Charged" value={order.status === "captured" ? gbp(order.capturedMinor) : order.status === "awaiting_chef" ? "Not yet" : "£0.00"} strong={order.status === "captured"} />
           <Money label="Released to you" value={order.status === "captured" ? gbp(order.authorizedMinor - (order.capturedMinor ?? 0)) : final === "released" ? gbp(order.authorizedMinor) : "–"} />
         </div>
@@ -136,7 +148,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
           </ul>
           {order.status === "captured" && (
             <Link href={`/o/${order.id}/record`} className="mt-4 inline-block text-sm font-medium text-basil">
-              Open the signed allergen record →
+              Open the allergen sign-off record →
             </Link>
           )}
         </div>
@@ -147,18 +159,21 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
               <li key={e.id} className="flex gap-3">
                 <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-basil" />
                 <div>
-                  <div className="text-xs text-muted">{new Date(e.at).toLocaleTimeString()}</div>
+                  <div className="text-xs text-muted">{new Date(e.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
                   <div>{e.message}</div>
                 </div>
               </li>
             ))}
           </ol>
           {order.paypalOrderId && (
-            <div className="mt-4 space-y-0.5 rounded-lg bg-cream p-3 font-mono text-[11px] text-muted">
-              <div>PayPal order: {order.paypalOrderId}</div>
-              {order.authorizationId && <div>Authorization: {order.authorizationId}</div>}
-              {order.captureId && <div>Capture: {order.captureId}</div>}
-            </div>
+            <details className="mt-4 rounded-lg bg-cream p-3 text-xs text-muted">
+              <summary className="cursor-pointer font-medium">PayPal references</summary>
+              <div className="mt-2 space-y-0.5 break-all font-mono">
+                <div>Order (intent AUTHORIZE): {order.paypalOrderId}</div>
+                {order.authorizationId && <div>Authorization: {order.authorizationId}</div>}
+                {order.captureId && <div>Capture (final_capture=true): {order.captureId}</div>}
+              </div>
+            </details>
           )}
         </div>
       </div>
@@ -168,9 +183,9 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
 
 function Money({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="rounded-2xl bg-cream px-4 py-3">
+    <div className="rounded-2xl bg-cream px-3 py-3 sm:px-4">
       <div className="text-xs text-muted">{label}</div>
-      <div className={`font-display text-2xl ${strong ? "font-semibold text-basil" : ""}`}>{value}</div>
+      <div className={`font-display text-lg sm:text-2xl ${strong ? "font-semibold text-basil" : ""}`}>{value}</div>
     </div>
   );
 }

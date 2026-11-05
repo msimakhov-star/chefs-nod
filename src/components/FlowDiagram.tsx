@@ -43,7 +43,7 @@ export default function FlowDiagram() {
         <text x="915" y="252" textAnchor="middle" fill="#b42318">void the hold</text>
 
         <rect x="10" y="200" width="420" height="80" rx="14" className={box} strokeWidth="1.5" />
-        <text x="220" y="230" textAnchor="middle" fontWeight="600">Diner gets a live status page and a signed record</text>
+        <text x="220" y="230" textAnchor="middle" fontWeight="600">Diner gets a live status page and a sign-off record</text>
         <text x="220" y="252" textAnchor="middle" fill="#6b6359">webhooks confirm every step · capture ID on the bag ticket</text>
       </g>
       {/* edges */}

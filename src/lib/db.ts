@@ -90,7 +90,7 @@ export const orders = {
     db()
       .prepare(
         `INSERT INTO orders (id, restaurant_id, status, paypal_order_id, created_at, json) VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET status = excluded.status, paypal_order_id = excluded.paypal_order_id, json = excluded.json`,
+         ON CONFLICT(id) DO UPDATE SET status = excluded.status, paypal_order_id = excluded.paypal_order_id, created_at = excluded.created_at, json = excluded.json`,
       )
       .run(o.id, o.restaurantId, o.status, o.paypalOrderId, o.createdAt, JSON.stringify(o));
     return o;
@@ -103,6 +103,7 @@ export const events = {
     const res = db().prepare("INSERT INTO events (order_id, type, message, data, at) VALUES (?, ?, ?, ?, ?)").run(orderId, type, message, JSON.stringify(data), at);
     return { id: Number(res.lastInsertRowid), orderId, type, message, data, at };
   },
+  setTime: (id: number, at: string) => db().prepare("UPDATE events SET at = ? WHERE id = ?").run(at, id),
   forOrder: (orderId: string) =>
     (db().prepare("SELECT * FROM events WHERE order_id = ? ORDER BY id").all(orderId) as Record<string, string>[]).map((r) => ({
       id: Number(r.id),

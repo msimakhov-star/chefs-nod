@@ -46,12 +46,12 @@ export default function Analytics({ orders, menu, aiEnabled }: { orders: (Order 
             </button>
           ))}
         </div>
-        <span className="hidden text-xs text-muted md:inline">Built with AG Studio.{aiEnabled ? " Ask its AI assistant to build widgets, or" : ""} Edit to build your own.</span>
+        {aiEnabled && <span className="hidden text-xs text-muted md:inline">Ask the AI assistant to build a chart, or edit the dashboard yourself.</span>}
         <button onClick={() => setMode((m) => (m === "view" ? "edit" : "view"))} className="rounded-full border border-line px-3 py-1 text-xs font-medium">
           {mode === "view" ? "Edit dashboard" : "Done editing"}
         </button>
       </div>
-      <div style={{ height: 1220 }}>
+      <div style={{ height: 860 }}>
         <AgStudioProvider licenseKey={process.env.NEXT_PUBLIC_AG_LICENSE_KEY} modules={aiEnabled ? [AgStudioAiModule] : undefined}>
           <AgStudio style={{ height: "100%", width: "100%" }} theme={theme} layout={{ widgetBorderEnabled: true }} data={data} initialState={initial} mode={mode} ai={aiEnabled ? ai : undefined} onApiReady={(e) => (apiRef.current = e.api)} />
         </AgStudioProvider>

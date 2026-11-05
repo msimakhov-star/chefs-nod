@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   if (limited) return limited;
   try {
     const body = await req.json();
-    const order = await placeOrder({ ...body, channel: body.channel === "replay" ? "replay" : "web" }, baseUrl(req));
+    const order = await placeOrder({ ...body, channel: "web" }, baseUrl(req));
     return NextResponse.json({ order });
   } catch (e) {
     return fail(e);

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { SEED_DISHES } from "./seed";
 import { allergensAfter, sourcesOf } from "./dish";
-import { findConflicts, planSwaps } from "./conflicts";
+import { findConflicts, keepDeclaredAllergies, planSwaps } from "./conflicts";
 import type { OrderItem } from "./types";
 
 const dish = (id: string) => SEED_DISHES.find((d) => d.id === id)!;
@@ -32,5 +32,15 @@ const items: OrderItem[] = [
 const conflicts = findConflicts(items, [{ name: "Dan", allergies: ["sesame"] }, { name: "Anna", allergies: [] }], (id) => dish(id));
 assert.equal(conflicts.length, 1);
 assert.equal(conflicts[0].itemId, "a");
+
+// A name nobody declared must not hide an allergy.
+const mismatch = findConflicts([{ ...items[0], forPerson: "my son" }], [{ name: "Dan", allergies: ["sesame"] }], (id) => dish(id));
+assert.equal(mismatch.length, 1);
+assert.deepEqual(mismatch[0].contains, ["sesame"]);
+assert.equal(findConflicts([{ ...items[0], forPerson: " dan " }], [{ name: "Dan", allergies: ["sesame"] }], (id) => dish(id)).length, 1);
+
+// The AI can add an allergy but never remove one, or drop a person.
+const kept = keepDeclaredAllergies([{ name: "Dan", allergies: ["sesame"] }, { name: "Mum", allergies: ["milk"] }], [{ name: "dan", allergies: ["eggs"] }]);
+assert.deepEqual(kept.map((p) => [p.name.toLowerCase(), [...p.allergies].sort()]), [["dan", ["eggs", "sesame"]], ["mum", ["milk"]]]);
 
 console.log("logic checks passed");

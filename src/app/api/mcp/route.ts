@@ -5,7 +5,7 @@ import { dishes, events, orders, restaurants } from "@/lib/db";
 import { ALLERGEN_IDS, allergenLabel } from "@/lib/allergens";
 import { allergenStatement, findConflicts } from "@/lib/conflicts";
 import { dinerMessage, placeOrder } from "@/lib/orders";
-import { baseUrl } from "@/lib/http";
+import { baseUrl, rateLimit } from "@/lib/http";
 import type { OrderItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +67,8 @@ function buildServer(origin: string) {
     },
     async ({ party, items }) => {
       const menu = dishes.list(r.id);
+      const unknown = items.filter((i) => !menu.some((d) => d.id === i.dish_id && d.confirmed && d.available)).map((i) => i.dish_id);
+      if (unknown.length) return { isError: true, content: [{ type: "text" as const, text: `Not on the confirmed menu, so nothing can be said about these: ${unknown.join(", ")}. Call get_menu for valid ids.` }] };
       const its: OrderItem[] = items.map((i, n) => ({ id: `item${n + 1}`, dishId: i.dish_id, dishName: menu.find((d) => d.id === i.dish_id)?.name ?? i.dish_id, forPerson: i.for_person, qty: 1, unitPriceMinor: 0 }));
       const conflicts = findConflicts(its, party as never, (id) => menu.find((d) => d.id === id) ?? null);
       return text({
@@ -155,6 +157,8 @@ function buildServer(origin: string) {
 }
 
 async function handle(req: Request) {
+  const limited = rateLimit(req, "mcp", 120, 3_600_000);
+  if (limited) return limited;
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   const server = buildServer(baseUrl(req));
   await server.connect(transport);

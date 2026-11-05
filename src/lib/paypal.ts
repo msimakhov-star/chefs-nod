@@ -10,6 +10,7 @@ import {
   PaypalWalletContextShippingPreference,
   TransactionSearchController,
 } from "@paypal/paypal-server-sdk";
+import { dishes } from "./db";
 import type { Order, Restaurant } from "./types";
 
 // Built with the APIMatic-generated PayPal Server SDK (@paypal/paypal-server-sdk).
@@ -102,7 +103,7 @@ export async function createHeldOrder(order: Order, restaurant: Restaurant, base
               name: `${i.dishName} (for ${i.forPerson})`.slice(0, 127),
               unitAmount: money(i.unitPriceMinor, currency),
               quantity: String(i.qty),
-              sku: i.dishId,
+              sku: dishes.get(i.dishId)?.paypalProductId ?? i.dishId,
             })),
           },
         ],
@@ -160,6 +161,7 @@ export async function createTestCardHold(order: Order, restaurant: Restaurant) {
   );
   const auth = result.purchaseUnits?.[0]?.payments?.authorizations?.[0];
   if (!result.id || !auth?.id) throw new PayPalFailure("Test-card order returned no authorization", 500, result);
+  if (auth.status !== "CREATED") throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, result);
   return { paypalOrderId: result.id, authorizationId: auth.id };
 }
 
@@ -171,16 +173,17 @@ export async function authorizeHeldOrder(order: Order) {
   );
   const auth = result.purchaseUnits?.[0]?.payments?.authorizations?.[0];
   if (!auth?.id) throw new PayPalFailure("Authorize returned no authorization", 500, result);
+  if (auth.status !== "CREATED") throw new PayPalFailure(`PayPal did not place the hold (status ${auth.status})`, 422, result);
   return { authorizationId: auth.id, status: String(auth.status), expiresAt: auth.expirationTime ?? null };
 }
 
 /** The chef said yes. Capture the (possibly lower) final amount and close the authorization. */
 export async function captureHold(order: Order, amountMinor: number, noteToPayer: string) {
-  if (isSimulated()) return { captureId: `SIMCAP-${order.id.slice(-8).toUpperCase()}`, status: "COMPLETED" };
+  if (isSimulated()) return { captureId: `SIMCAP-${order.id.slice(-8).toUpperCase()}`, status: "COMPLETED", capturedMinor: amountMinor };
   const result = await call("Capture", () =>
     sdk().payments.captureAuthorizedPayment({
       authorizationId: order.authorizationId!,
-      paypalRequestId: `${order.id}-capture`,
+      paypalRequestId: `${order.id}-capture-${amountMinor}`, // a changed decision must never replay an earlier capture
       prefer: "return=representation",
       body: {
         amount: money(amountMinor, order.currency),
@@ -191,7 +194,9 @@ export async function captureHold(order: Order, amountMinor: number, noteToPayer
     }),
   );
   if (!result.id) throw new PayPalFailure("Capture returned no id", 500, result);
-  return { captureId: result.id, status: String(result.status) };
+  if (result.status !== "COMPLETED" && result.status !== "PENDING") throw new PayPalFailure(`PayPal did not capture the money (status ${result.status})`, 422, result);
+  const value = Number(result.amount?.value);
+  return { captureId: result.id, status: String(result.status), capturedMinor: Number.isFinite(value) ? Math.round(value * 100) : amountMinor };
 }
 
 /** The chef said no, or nobody answered in time. Release the hold. */
@@ -210,14 +215,10 @@ export async function refundCapture(order: Order, amountMinor: number, noteToPay
       captureId: order.captureId!,
       paypalRequestId: `${order.id}-refund-${alreadyRefundedMinor}-${amountMinor}`, // two equal partial refunds must stay two refunds
       prefer: "return=representation",
-      body: { amount: money(amountMinor, order.currency), noteToPayer: noteToPayer.slice(0, 255), invoiceId: `CN-${order.id}` },
+      body: { amount: money(amountMinor, order.currency), noteToPayer: noteToPayer.trim().slice(0, 255) || undefined },
     }),
   );
   return { refundId: result.id!, status: String(result.status) };
-}
-
-export async function getPaypalOrder(paypalOrderId: string) {
-  return call("Get order", () => sdk().orders.getOrder({ id: paypalOrderId }));
 }
 
 export async function searchTransactions(startIso: string, endIso: string) {

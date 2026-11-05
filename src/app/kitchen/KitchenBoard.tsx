@@ -35,12 +35,20 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
   const [signoffMinutes, setSignoffMinutes] = useState(restaurant.signoffMinutes);
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(false);
+  const [offline, setOffline] = useState(false);
   const known = useRef<Set<string>>(new Set());
   const first = useRef(true);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/kitchen/orders", { cache: "no-store" });
-    const data = await res.json();
+    let data;
+    try {
+      const res = await fetch("/api/kitchen/orders", { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      data = await res.json();
+    } catch {
+      setOffline(true);
+      return;
+    }
     const list: KOrder[] = data.orders;
     setSignoffMinutes(data.signoffMinutes);
     const waiting = list.filter((o) => o.status === "awaiting_chef").map((o) => o.id);
@@ -54,7 +62,12 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
   useEffect(() => {
     load();
     const es = new EventSource(`/api/stream?restaurant=${restaurant.id}`);
-    es.onmessage = () => load();
+    es.onmessage = () => {
+      setOffline(false);
+      load();
+    };
+    es.onopen = () => setOffline(false);
+    es.onerror = () => setOffline(true);
     const tick = setInterval(() => {
       setNow(Date.now());
     }, 1000);
@@ -75,15 +88,15 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
         <div className="flex items-center gap-3">
           <Logo className="h-9 w-9" />
           <div>
-            <div className="font-display text-xl font-semibold">Kitchen · {restaurant.name}</div>
-            <div className="text-xs text-white/65">Allergy orders wait here with the money held in PayPal. Nothing is charged until you nod.</div>
+            <h1 className="font-display text-xl font-semibold">Kitchen · {restaurant.name}</h1>
+            <div className="hidden text-xs text-white/65 xl:block">Allergy orders wait here with the money held in PayPal. Nothing is charged until you nod.</div>
           </div>
         </div>
         <div className="flex items-center gap-6 text-sm">
           <Stat label="Need your nod" value={String(waiting.length)} hot={waiting.length > 0} />
           <Stat label="Held in PayPal" value={gbp(held)} />
-          <button onClick={() => setSound((s) => !s)} className={`rounded-full border px-3 py-1.5 text-xs ${sound ? "border-saffron text-saffron" : "border-white/20 text-white/60"}`}>
-            {sound ? "🔔 Sound on" : "🔕 Sound off"}
+          <button aria-pressed={sound} onClick={() => setSound((s) => !s)} className={`min-h-11 rounded-full border px-4 text-xs ${sound ? "border-saffron text-saffron" : "border-white/30 text-white/70"}`}>
+            {sound ? "Sound on" : "Sound off"}
           </button>
           <Link href="/owner" className="text-xs text-white/60 hover:text-white">
             Owner view →
@@ -91,11 +104,17 @@ export default function KitchenBoard({ restaurant, menu }: { restaurant: Restaur
         </div>
       </header>
 
+      {offline && <div role="alert" className="bg-chili px-6 py-2 text-center text-sm font-semibold text-white">Reconnecting. New orders may be delayed.</div>}
+      {!sound && (
+        <button onClick={() => setSound(true)} className="min-h-11 w-full bg-saffron/15 px-6 py-2 text-sm font-semibold text-[#ffd58a] hover:bg-saffron/25">
+          Turn on the new-order sound
+        </button>
+      )}
       <div className="grid flex-1 gap-6 p-6 xl:grid-cols-[1fr_320px]">
-        <div>
+        <div aria-live="polite">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-saffron">Needs your nod</h2>
           {waiting.length === 0 ? (
-            <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-white/15 text-white/60">No orders waiting. New allergy orders appear here instantly.</div>
+            <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-white/15 px-6 text-center text-white/60">No orders waiting. New allergy orders appear here instantly.</div>
           ) : (
             <div className="grid items-start gap-5 lg:grid-cols-2">
               {waiting.map((o) => (
@@ -164,6 +183,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [armed, setArmed] = useState(false); // "Nod anyway" takes two taps; any change of swaps disarms it
 
   const dish = (id: string) => menu.find((d) => d.id === id);
   const allergiesOf = (name: string) => order.party.find((p) => p.name.toLowerCase() === name.toLowerCase())?.allergies ?? [];
@@ -200,18 +220,21 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
   }
 
   return (
-    <article className={`arrive overflow-hidden rounded-2xl bg-[#1d1a17] ring-1 ${risk === "high" ? "ring-chili/70" : risk === "check" ? "ring-saffron/60" : "ring-white/10"}`}>
+    <article className={`arrive overflow-clip rounded-2xl bg-[#1d1a17] ring-1 ${risk === "high" ? "ring-chili/70" : risk === "check" ? "ring-saffron/60" : "ring-white/10"}`}>
       <div className={`flex items-start justify-between gap-3 px-5 py-4 ${risk === "high" ? "bg-chili/25" : risk === "check" ? "bg-saffron/15" : "bg-white/5"}`}>
         <div className="min-w-0">
           <div className="text-[11px] uppercase tracking-[0.14em] text-white/65">
-            {order.channel === "agent" ? `🤖 Ordered by ${order.agentName}` : order.channel === "replay" ? "Replay order" : "Web order"} · for {order.dinerName}
+            {order.channel === "agent" ? `AI agent order · ${order.agentName}` : order.channel === "replay" ? "Replay order" : "Web order"} · for {order.dinerName}
           </div>
           <div className="mt-1 font-display text-xl font-semibold leading-snug">{order.check?.headline ?? "New order"}</div>
+          {order.check?.extraRisks?.map((r) => (
+            <div key={r} className="mt-1 text-sm text-[#ffd58a]">Also check: {r}</div>
+          ))}
         </div>
         <div className="shrink-0 text-right">
           <div className="text-xs text-white/65">PayPal holds</div>
           <div className="font-display text-xl font-semibold">{gbp(order.authorizedMinor)}</div>
-          {left != null && <div className={`text-xs tabular-nums ${left < 120 ? "text-[#ff8a80]" : "text-white/65"}`}>auto-release in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</div>}
+          {left != null && <div className={`text-sm font-semibold tabular-nums ${left < 120 ? "text-[#ff8a80]" : "text-white/65"}`}>auto-release in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</div>}
         </div>
       </div>
 
@@ -219,14 +242,14 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
         {order.party
           .filter((p) => p.allergies.length || p.notes)
           .map((p) => (
-            <div key={p.name} className="flex flex-wrap items-center gap-1.5 text-sm">
+            <div key={p.name} className="flex flex-wrap items-center gap-1.5 text-lg">
               <span className="font-medium">{p.name}:</span>
               {p.allergies.map((a) => (
-                <span key={a} className="rounded-full bg-chili px-2 py-0.5 text-xs font-semibold text-white">
+                <span key={a} className="rounded-full bg-chili px-3 py-1 text-lg font-bold text-white">
                   {allergenLabel(a)}
                 </span>
               ))}
-              {p.notes && <span className="text-xs text-white/60">{p.notes}</span>}
+              {p.notes && <span className="text-base font-semibold text-[#ffb4ab]">{p.notes}</span>}
             </div>
           ))}
       </div>
@@ -250,22 +273,22 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                   </span>
                   <span className="text-white/65"> · {it.forPerson}</span>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap justify-end gap-1">
                   {hit.map((a) => (
-                    <span key={a} className="rounded bg-chili/80 px-1.5 text-[11px] font-semibold" title={d ? `From: ${sourcesOf(d, a, chosen).join(", ")}` : ""}>
+                    <span key={a} className="rounded bg-chili/80 px-2 py-0.5 text-sm font-semibold" title={d ? `From: ${sourcesOf(d, a, chosen).join(", ")}` : ""}>
                       contains {allergenLabel(a)}
                     </span>
                   ))}
-                  {originalHit.length > 0 && hit.length === 0 && <span className="rounded bg-[#7fd1a0] px-1.5 text-[11px] font-semibold text-black">✓ declared {originalHit.map(allergenLabel).join(", ")} removed</span>}
+                  {originalHit.length > 0 && hit.length === 0 && <span className="rounded bg-[#7fd1a0] px-2 py-0.5 text-sm font-semibold text-black">✓ declared {originalHit.map(allergenLabel).join(", ")} removed</span>}
                   {may.map((a) => (
-                    <span key={a} className="rounded bg-saffron/70 px-1.5 text-[11px] font-semibold text-black">
+                    <span key={a} className="rounded bg-saffron/70 px-2 py-0.5 text-sm font-semibold text-black">
                       may contain {allergenLabel(a)}
                     </span>
                   ))}
                 </div>
               </div>
               {q && <p className="mt-1.5 text-sm leading-relaxed text-white/80">{q.question}</p>}
-              {d && hit.length > 0 && <p className="mt-1 text-xs text-[#ff8a80]">{hit.map((a) => `${allergenLabel(a)} comes from: ${sourcesOf(d, a, chosen).join(", ")}`).join(" · ")}</p>}
+              {d && hit.length > 0 && <p className="mt-1 text-sm text-[#ff8a80]">{hit.map((a) => `${allergenLabel(a)} comes from: ${sourcesOf(d, a, chosen).join(", ")}`).join(" · ")}</p>}
               {d && d.swaps.length > 0 && (q || originalHit.length > 0) && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {d.swaps.map((s) => {
@@ -277,18 +300,20 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
                         key={s.id}
                         disabled={costsMore}
                         title={costsMore ? "Costs more, so the diner would need to approve again" : undefined}
+                        aria-pressed={on}
                         onClick={() =>
+                          (setArmed(false),
                           setSwaps((all) => {
                             // one swap per component: picking a swap replaces any other swap on the same component
                             const others = (all[it.id] ?? []).filter((id) => id !== s.id && d.swaps.find((w) => w.id === id)?.replaces !== s.replaces);
                             return { ...all, [it.id]: on ? others : [...others, s.id] };
-                          })
+                          }))
                         }
-                        className={`rounded-full border px-3 py-1 text-xs ${on ? "border-[#7fd1a0] bg-[#7fd1a0] font-semibold text-black" : costsMore ? "border-white/10 text-white/25 line-through" : suggested ? "border-[#7fd1a0]/70 text-[#7fd1a0]" : "border-white/20 text-white/70"}`}
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm ${on ? "border-[#7fd1a0] bg-[#7fd1a0] font-semibold text-black" : costsMore ? "border-white/10 text-white/50 line-through" : suggested ? "border-[#7fd1a0]/70 text-[#7fd1a0]" : "border-white/20 text-white/70"}`}
                       >
-                        {suggested && !on ? "✦ " : ""}
+                        {suggested && !on ? "Suggested: " : ""}
                         {s.label}
-                        {s.priceDeltaMinor !== 0 && ` (${s.priceDeltaMinor > 0 ? "+" : "−"}${gbp(Math.abs(s.priceDeltaMinor))})`}
+                        {s.priceDeltaMinor !== 0 && ` (${s.priceDeltaMinor > 0 ? "+" : "−"}${gbp(Math.abs(s.priceDeltaMinor))}${costsMore ? ", needs re-approval" : ""})`}
                       </button>
                     );
                   })}
@@ -299,34 +324,34 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
         })}
       </div>
 
-      <div className="border-t border-white/10 px-5 py-4">
+      <div className="sticky bottom-0 border-t border-white/10 bg-[#1d1a17] px-5 py-4">
         {!declining ? (
           <>
             {stillContains.length > 0 && (
-              <div className="mb-3 rounded-lg bg-chili/25 px-3 py-2 text-xs leading-relaxed text-[#ffb4ab]">
-                ⚠ Still contains a declared allergen: {stillContains.map((x) => `${x.it.dishName} for ${x.it.forPerson} (${x.left.map(allergenLabel).join(", ")})`).join("; ")}. Only nod if you are sure, or decline.
+              <div role="alert" className="mb-3 rounded-lg bg-chili/25 px-3 py-2 text-sm leading-relaxed text-[#ffb4ab]">
+                Still contains a declared allergen: {stillContains.map((x) => `${x.it.dishName} for ${x.it.forPerson} (${x.left.map(allergenLabel).join(", ")})`).join("; ")}. Only nod if you are sure, or decline.
               </div>
             )}
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="mb-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-white/55 focus:border-white/30" />
             <div className="flex flex-wrap items-center gap-2">
               <button disabled={busy} onClick={() => {
-                  if (stillContains.length && !window.confirm(`This still contains a declared allergen: ${stillContains.map((x) => `${x.it.dishName} (${x.left.map(allergenLabel).join(", ")})`).join("; ")}. Nod anyway?`)) return;
+                  if (stillContains.length && !armed) return setArmed(true);
                   decide(changed ? "approved_with_changes" : "approved");
                 }} className={`flex-1 rounded-xl px-4 py-3.5 text-base font-bold disabled:opacity-50 ${stillContains.length ? "border border-saffron bg-transparent text-[#f0b860] hover:bg-saffron/15" : "bg-[#7fd1a0] text-black hover:brightness-105"}`}>
-                {busy ? "Talking to PayPal…" : `${stillContains.length ? "Nod anyway" : changed ? "Nod with changes" : "Nod"} · charge ${gbp(newTotal)}`}
+                {busy ? "Talking to PayPal…" : stillContains.length && armed ? `Tap again: still contains ${[...new Set(stillContains.flatMap((x) => x.left))].map(allergenLabel).join(", ")}` : `${stillContains.length ? "Nod anyway" : changed ? "Nod with changes" : "Nod"} · charge ${gbp(newTotal)}`}
               </button>
               <button disabled={busy} onClick={() => setDeclining(true)} className="rounded-xl border border-chili/60 px-4 py-3.5 text-sm font-semibold text-[#ff8a80] hover:bg-chili/20">
                 Can&rsquo;t do it
               </button>
             </div>
-            {changed && delta < 0 && <div className="mt-2 text-xs text-white/65">PayPal captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold and closes it. The diner sees the change in their PayPal receipt.</div>}
+            {changed && delta < 0 && <div className="mt-2 text-sm text-white/65">PayPal captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold and closes it. The diner sees the change in their PayPal receipt.</div>}
           </>
         ) : (
           <div className="space-y-2">
             <div className="text-sm font-semibold">Why? The diner sees this, translated. The hold is released.</div>
             <div className="flex flex-wrap gap-1.5">
               {DECLINE_REASONS.map((r) => (
-                <button key={r} onClick={() => setReason(r)} className={`rounded-full border px-3 py-1 text-xs ${reason === r ? "border-[#ff8a80] bg-[#ff8a80] text-black" : "border-white/20 text-white/70"}`}>
+                <button key={r} aria-pressed={reason === r} onClick={() => setReason(r)} className={`min-h-11 rounded-full border px-4 py-2 text-sm ${reason === r ? "border-[#ff8a80] bg-[#ff8a80] text-black" : "border-white/20 text-white/70"}`}>
                   {r}
                 </button>
               ))}
@@ -342,7 +367,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone }: { order: KOrder; m
             </div>
           </div>
         )}
-        {error && <div className="mt-2 rounded-lg bg-chili/30 px-3 py-2 text-xs">{error}</div>}
+        {error && <div role="alert" className="mt-2 rounded-lg bg-chili/30 px-3 py-2 text-sm">{error}</div>}
       </div>
     </article>
   );

@@ -8,9 +8,11 @@ Built for the PayPal AI Hackathon 2026. Runs on the PayPal sandbox; no real mone
 
 ## Why
 
-AI assistants cannot guarantee that a dish is free of allergens. Decisions about cross-contact, shared fryers, and recipe swaps belong only to the kitchen. Currently, agent-placed orders either go through without verification or restaurants refuse them entirely. This is a problem for people ordering for others, such as parents or carers.
+About 2.4 million UK adults have a clinically confirmed food allergy. Many people order food for others, such as children or elderly parents. When ordering remotely, 47% of people with a food hypersensitivity said they received written allergen information. Current AI assistants cannot guarantee a dish is free of allergens. Decisions regarding cross-contact, shared fryers, and recipe swaps must be made by the kitchen.
 
-UK Food Standards Agency guidance requires allergen information to be available before purchase and at delivery for remote sales. Chef's Nod provides a sign-off workflow for this requirement. The chef makes the final safety decision. The system ensures the AI only suggests options the owner has confirmed.
+Food sold online or by phone requires allergen information before purchase and at delivery. Chef's Nod provides a sign-off workflow for independent restaurants. It does not provide a compliance guarantee or certify ingredients. The chef makes the final decision on every order.
+
+Sources: [University of Manchester on the FSA PAFA report](https://www.manchester.ac.uk/about/news/around-6-of-the-uk-adult-population-have-a-food-allergy-new-report-finds/), [FSA consumer survey](https://science.food.gov.uk/article/142308-allergen-information-for-non-prepacked-foods-consumer-experiences-behaviours-and-attitudes), [FSA allergen guidance, section 3.2](https://www.gov.uk/government/publications/allergen-guidance-for-food-businesses/allergen-guidance-for-food-businesses).
 
 ## What it does
 
@@ -32,13 +34,14 @@ UK Food Standards Agency guidance requires allergen information to be available 
 | Chef declines, or 10 minutes pass | `POST /v2/payments/authorizations/{id}/void` | Hold released, not charged |
 | Owner refunds later | `POST /v2/payments/captures/{id}/refund` | Refund with a note |
 
-Every step is confirmed by verified PayPal webhooks (`PAYMENT.AUTHORIZATION.CREATED`, `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.AUTHORIZATION.VOIDED`, `PAYMENT.CAPTURE.REFUNDED`).
+Verified PayPal webhooks can move the order too: `CHECKOUT.ORDER.APPROVED` places the hold if the diner never returns to the site, and declined, pending, reversed and refunded captures update it. Deliveries are deduplicated by event id.
 
 ## Safety by design
 
 - The AI never decides on food safety. It only suggests questions and identifies potential allergens based on data the owner has confirmed.
 - The chef makes the final decision on every order. Every order waits for the chef's Nod or Decline before any money is taken.
 - The AI only builds baskets from confirmed dishes. It cannot suggest a dish whose allergen rows the owner has not confirmed.
+- The AI can add an allergy but never remove one the diner declared, and an item for a name nobody declared takes every allergy in the party.
 - The system uses a human-in-the-loop workflow. A human must approve the payment and the chef must confirm the final order before the money is captured.
 - This is a sign-off workflow, not an allergen certification. The printed record says so.
 
@@ -46,7 +49,7 @@ Every step is confirmed by verified PayPal webhooks (`PAYMENT.AUTHORIZATION.CREA
 
 - Orders v2 (create with `AUTHORIZE`, authorize) and Payments v2 (capture, partial capture, void, refund) through the APIMatic-generated [PayPal Server SDK](https://www.npmjs.com/package/@paypal/paypal-server-sdk), built with the APIMatic Context Plugin for PayPal
 - Webhooks with signature verification (`/v1/notifications/verify-webhook-signature`)
-- Catalog Products API: each confirmed dish is synced as a PayPal product
+- Catalog Products API: each confirmed dish is synced as a PayPal product, and the product id is sent as the item `sku` on the order
 - Transaction Search, and PayPal's hosted sandbox MCP server, for the owner's money assistant
 - Published sandbox test cards for the "Friday service" replay
 
@@ -80,7 +83,7 @@ pnpm dev                      # http://localhost:3000
 pnpm check                    # allergen and swap logic self-check
 ```
 
-Without PayPal keys the app runs in a clearly labelled simulated-payments mode. Register the webhook for a deployment with:
+Without PayPal keys the app runs in a clearly labelled simulated-payments mode. Set `STAFF_KEY` on any public server: the kitchen, owner and money routes need it, and they are open without it. Tests: `node scripts/smoke.mjs <url>` (simulated mode), `node scripts/sandbox.mjs <url> [staffKey]` (real sandbox ids). Register the webhook for a deployment with:
 
 ```bash
 PUBLIC_URL=https://<your-deployment> pnpm tsx --env-file=.env.local scripts/register-webhook.ts

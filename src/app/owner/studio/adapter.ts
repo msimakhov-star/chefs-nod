@@ -43,7 +43,7 @@ function runTurn(request: AgLlmRequest, signal?: AbortSignal): AgLlmResponseHand
       }
       resolve({
         id: nextId("resp"),
-        createdAt: Math.floor(Date.now() / 1000),
+        createdAt: Date.now(),
         model: "chefs-nod",
         output,
         status: "completed",

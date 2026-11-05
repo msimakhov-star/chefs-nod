@@ -1,6 +1,6 @@
 // End-to-end API test. Usage: node scripts/smoke.mjs [baseUrl]
-// Resets the demo, then drives every order path. In simulated mode it approves holds itself;
-// against real PayPal the PayPal-approval steps are skipped unless replay test cards work.
+// Resets the demo, then drives every order path. Simulated mode only: it approves holds itself.
+// For real PayPal use scripts/sandbox.mjs. Set STAFF_KEY when the server has one.
 const BASE = process.argv[2] || "http://localhost:3100";
 let pass = 0;
 const failures = [];
@@ -10,7 +10,7 @@ const ok = (cond, name, extra = "") => {
   console.log(`${cond ? "  ok  " : " FAIL "} ${name}${!cond && extra ? ` -> ${extra}` : ""}`);
 };
 const j = async (method, path, body, raw) => {
-  const res = await fetch(BASE + path, { method, redirect: "manual", headers: { "Content-Type": "application/json", "x-forwarded-for": "10.0.0.9" }, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) });
+  const res = await fetch(BASE + path, { method, redirect: "manual", headers: { "Content-Type": "application/json", "x-forwarded-for": "10.0.0.9", ...(process.env.STAFF_KEY ? { "x-staff-key": process.env.STAFF_KEY } : {}) }, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) });
   const text = await res.text();
   let data = null;
   try { data = JSON.parse(text); } catch {}
@@ -34,10 +34,22 @@ const menu = (await j("GET", `/api/menu?slug=${SLUG}`)).data;
 ok(menu.dishes.length === 14 && menu.dishes.every((d) => d.confirmed), "14 confirmed dishes");
 ok(menu.dishes.every((d) => Array.isArray(d.components) && d.components.length > 0), "every dish has components");
 
+if (process.env.STAFF_KEY) {
+  console.log("# staff routes refuse anyone without the key");
+  for (const [m, path] of [["POST", "/api/demo/reset"], ["GET", "/api/owner/orders"], ["GET", "/api/kitchen/orders"], ["POST", "/api/orders/x/decision"], ["POST", "/api/orders/x/refund"], ["PUT", "/api/menu/dish"], ["GET", "/api/stream?restaurant=x"]]) {
+    ok((await fetch(BASE + path, { method: m, headers: { "Content-Type": "application/json" }, body: m === "GET" ? undefined : "{}" })).status === 401, `${m} ${path} needs the key`);
+  }
+  ok((await fetch(BASE + "/kitchen", { redirect: "manual" })).status === 307, "kitchen page sends strangers to sign in");
+}
+
 console.log("# bad order input");
 ok((await j("POST", "/api/orders", sesameOrder({ items: [] }))).status === 400, "empty basket refused");
 ok((await j("POST", "/api/orders", sesameOrder({ items: [{ dishId: "nope", qty: 1, forPerson: "Dan" }] }))).status === 400, "unknown dish refused");
 ok((await j("POST", "/api/orders", sesameOrder({ restaurantSlug: "nope" }))).status === 400, "unknown restaurant refused");
+{
+  const o = (await j("POST", "/api/orders", sesameOrder({ items: [{ dishId: "dish_halloumi", qty: 1, forPerson: "my son" }] }))).data?.order;
+  ok(o?.party.find((p) => p.name === "my son")?.allergies.includes("sesame"), "item for an undeclared name inherits the party's allergies");
+}
 ok((await j("POST", "/api/orders", undefined, "not json")).status === 400, "non-JSON body refused");
 ok((await j("POST", "/api/orders", { restaurantSlug: SLUG, dinerName: "x", items: [{ dishId: "dish_chips", qty: 1, forPerson: "x" }] })).status === 400, "missing party refused");
 for (const [qty, want] of [[0, 1], [-3, 1], [1000, 20], [1.6, 2], ["abc", 1], [null, 1]]) {
@@ -157,7 +169,7 @@ ok(noFile.status >= 400, "menu import without a file fails cleanly");
 
 console.log("# stream");
 const ctl = new AbortController();
-const sse = await fetch(`${BASE}/api/stream?restaurant=rest_demo`, { signal: ctl.signal });
+const sse = await fetch(`${BASE}/api/stream?restaurant=rest_demo`, { signal: ctl.signal, headers: process.env.STAFF_KEY ? { "x-staff-key": process.env.STAFF_KEY } : {} });
 const first = new TextDecoder().decode((await sse.body.getReader().read()).value);
 ctl.abort();
 ok(sse.headers.get("content-type")?.includes("text/event-stream") && first.includes("hello"), "event stream says hello");

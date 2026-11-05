@@ -1,5 +1,5 @@
 import { dishes, events, newId, orders, restaurants } from "./db";
-import { allergenStatement, findConflicts, risk } from "./conflicts";
+import { allergenStatement, allergiesFor, findConflicts, risk } from "./conflicts";
 import { kitchenCheck, rulesCheck, translate } from "./agents";
 import { authorizeHeldOrder, captureHold, createHeldOrder, createTestCardHold, refundCapture, voidHold, PayPalFailure } from "./paypal";
 import { publish } from "./bus";
@@ -51,7 +51,11 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   const items: OrderItem[] = input.items.map((i) => {
     const d = dishById(i.dishId);
     if (!d || !d.confirmed || !d.available) throw new Error(`Dish ${i.dishId} is not on the confirmed menu`);
-    if (!party.some((p) => p.name.toLowerCase() === i.forPerson.toLowerCase())) party.push({ name: i.forPerson, allergies: [], notes: "" });
+    // An item for a name nobody declared takes every allergy in the party, and the kitchen is told why.
+    if (!party.some((p) => p.name.trim().toLowerCase() === i.forPerson.trim().toLowerCase())) {
+      const all = [...allergiesFor(party, i.forPerson)];
+      party.push({ name: i.forPerson.trim() || "Guest", allergies: all, notes: all.length ? "Not named when allergies were declared, so every allergy in this order applies." : "" });
+    }
     const qty = Number(i.qty);
     return { id: newId("it"), dishId: d.id, dishName: d.name, forPerson: i.forPerson, qty: Number.isFinite(qty) ? Math.max(1, Math.min(20, Math.round(qty))) : 1, unitPriceMinor: d.priceMinor };
   });
@@ -110,7 +114,7 @@ export async function placeOrder(input: PlaceOrderInput, baseUrl: string) {
   order.paypalOrderId = pp.paypalOrderId;
   order.approvalUrl = pp.approvalUrl;
   orders.save(order);
-  log(order, "created", `${order.channel === "agent" ? `${order.agentName ?? "An AI agent"} placed` : `${order.dinerName} placed`} an order for ${fmt(order.authorizedMinor)}. PayPal order ${pp.paypalOrderId} created with intent AUTHORIZE: nothing is charged yet.`, { conflicts, statement });
+  log(order, "created", `${order.channel === "agent" ? `${order.agentName ?? "An AI agent"} placed` : `${order.dinerName} placed`} an order for ${fmt(order.authorizedMinor)}. Nothing is charged yet.`, { conflicts, statement });
   void refine().catch((e) => console.error("kitchen check refine failed", e));
   return order;
 }
@@ -129,13 +133,18 @@ async function placeHold(orderId: string) {
     order.authorizationId = auth.authorizationId;
     order.status = "awaiting_chef";
     orders.save(order);
-    log(order, "authorized", `Diner approved. PayPal is holding ${fmt(order.authorizedMinor)} (authorization ${auth.authorizationId}). Waiting for the chef.`, auth);
+    log(order, "authorized", `PayPal is holding ${fmt(order.authorizedMinor)}. Waiting for the chef.`, auth);
   } catch (e) {
     // Not approved yet (e.g. the diner came back without approving): keep waiting instead of failing the order.
     const issue = e instanceof PayPalFailure ? JSON.stringify(e.detail ?? "") : "";
-    if (/ORDER_NOT_APPROVED|PAYER_ACTION_REQUIRED/.test(issue)) {
-      log(order, "info", "PayPal says the diner has not approved yet. Nothing is held.");
+    if (/ORDER_NOT_APPROVED|PAYER_ACTION_REQUIRED|INSTRUMENT_DECLINED/.test(issue)) {
+      log(order, "info", /INSTRUMENT_DECLINED/.test(issue) ? "PayPal declined that payment method. The diner can approve again with another. Nothing is held." : "PayPal says the diner has not approved yet. Nothing is held.");
       return order;
+    }
+    // No clear answer from PayPal: the hold may exist, so keep the order and let the retry with the same request id settle it.
+    if (!(e instanceof PayPalFailure) || e.status >= 500) {
+      log(order, "info", "PayPal did not give a clear answer, so this will be tried again.");
+      throw e;
     }
     order.status = "failed";
     orders.save(order);
@@ -170,14 +179,14 @@ async function decide(orderId: string, outcome: ChefDecision["outcome"], applied
   const order = orders.get(orderId);
   if (!order) throw new Error("Order not found");
   if (order.status !== "awaiting_chef") throw new Error(`This order is ${order.status.replace("_", " ")}, not waiting for the chef`);
-  const decision: ChefDecision = { outcome, appliedSwaps: outcome === "approved_with_changes" ? appliedSwaps : [], reason: reason.trim(), decidedAt: new Date().toISOString() };
+  const decision: ChefDecision = { outcome, appliedSwaps: outcome === "approved_with_changes" ? appliedSwaps : [], reason: reason.trim().replace(/\.+$/, ""), decidedAt: new Date().toISOString() };
 
   if (outcome === "declined") {
     await voidHold(order);
     order.status = "voided";
     order.decision = decision;
     orders.save(order);
-    log(order, "voided", `Chef declined${decision.reason ? `: "${decision.reason}"` : ""}. Authorization ${order.authorizationId} voided, the diner is not charged.`);
+    log(order, "voided", `Chef declined${decision.reason ? `: "${decision.reason}"` : ""}. The hold was released and nothing was charged.`);
     return order;
   }
 
@@ -194,17 +203,58 @@ async function decide(orderId: string, outcome: ChefDecision["outcome"], applied
       : "Chef checked the allergies on your order and confirmed it.";
   const cap = await captureHold(order, amount, note);
   order.status = "captured";
-  order.capturedMinor = amount;
+  order.capturedMinor = cap.capturedMinor;
+  order.captureStatus = cap.status;
   order.captureId = cap.captureId;
   order.decision = decision;
   orders.save(order);
   log(
     order,
     "captured",
-    `Chef ${outcome === "approved" ? "approved" : `approved with changes (${changes})`}. Captured ${fmt(amount)} of the ${fmt(order.authorizedMinor)} hold with final_capture=true (capture ${cap.captureId}).`,
+    `Chef ${outcome === "approved" ? "approved" : `approved with changes (${changes})`}. ${fmt(cap.capturedMinor)} charged${cap.capturedMinor < order.authorizedMinor ? `, ${fmt(order.authorizedMinor - cap.capturedMinor)} released` : ""}.`,
     { note, amount },
   );
   return order;
+}
+
+type PayPalResource = { id?: string; status?: string; seller_payable_breakdown?: { total_refunded_amount?: { value?: string } } };
+
+/** A verified PayPal webhook. PayPal is the source of truth, including for things done outside this app. Safe to receive twice. */
+export function onPayPalEvent(orderId: string, type: string, hookId: string, summary: string | undefined, resource: PayPalResource) {
+  return withLock(orderId, async () => {
+    const order = orders.get(orderId);
+    if (!order || events.forOrder(orderId).some((e) => (e.data as { hookId?: string } | null)?.hookId === hookId)) return;
+    log(order, "webhook", `PayPal webhook ${type} verified${summary ? `: ${summary}` : ""}`, { id: resource.id, hookId });
+    const change = (status: Order["status"], message: string) => {
+      order.status = status;
+      orders.save(order);
+      log(order, "paypal", message);
+    };
+    if (type === "CHECKOUT.ORDER.APPROVED") {
+      await placeHold(orderId).catch((e) => console.error("hold from webhook failed", orderId, e)); // the diner may never come back to the return URL
+    } else if (type === "PAYMENT.AUTHORIZATION.VOIDED" && order.status === "awaiting_chef") {
+      change("voided", "PayPal says this hold was voided outside Chef's Nod. The diner is not charged.");
+    } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.PENDING") {
+      order.captureStatus = "PENDING";
+      orders.save(order);
+    } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.COMPLETED") {
+      order.captureStatus = "COMPLETED";
+      orders.save(order);
+    } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.DECLINED") {
+      order.capturedMinor = null;
+      change("failed", "PayPal declined the capture. The diner was not charged.");
+    } else if ((order.status === "captured" || order.status === "refunded") && type === "PAYMENT.CAPTURE.REVERSED") {
+      order.refundedMinor = order.capturedMinor ?? 0;
+      change("refunded", "PayPal reversed this payment.");
+    } else if (order.status === "captured" && type === "PAYMENT.CAPTURE.REFUNDED") {
+      const total = Math.round(Number(resource.seller_payable_breakdown?.total_refunded_amount?.value) * 100);
+      if (total > (order.refundedMinor ?? 0)) {
+        order.refundedMinor = total;
+        if (total >= (order.capturedMinor ?? 0)) order.status = "refunded";
+        orders.save(order);
+      }
+    }
+  });
 }
 
 export async function expireStale() {
@@ -262,10 +312,14 @@ export async function dinerMessage(order: Order) {
       en = "PayPal is holding the money. The chef is reading your allergies now.";
       break;
     case "captured":
+      if (order.captureStatus === "PENDING") {
+        en = `The chef confirmed your order. PayPal is still processing the £${((order.capturedMinor ?? 0) / 100).toFixed(2)} charge.`;
+        break;
+      }
       en =
         order.decision?.outcome === "approved_with_changes"
-          ? `The chef confirmed your order with changes: ${order.decision.appliedSwaps.map((a) => dishes.get(order.items.find((i) => i.id === a.itemId)!.dishId)?.swaps.find((s) => s.id === a.swapId)?.label).join("; ")}. You paid £${((order.capturedMinor ?? 0) / 100).toFixed(2)}.${order.decision.reason ? ` Chef's note: ${order.decision.reason}` : ""}`
-          : `The chef confirmed your order. You paid £${((order.capturedMinor ?? 0) / 100).toFixed(2)}.${order.decision?.reason ? ` Chef's note: ${order.decision.reason}` : ""}`;
+          ? `The chef confirmed your order with changes: ${order.decision.appliedSwaps.map((a) => dishes.get(order.items.find((i) => i.id === a.itemId)!.dishId)?.swaps.find((s) => s.id === a.swapId)?.label).join("; ")}. You paid £${((order.capturedMinor ?? 0) / 100).toFixed(2)}.${order.decision.reason ? ` Chef's note: ${order.decision.reason}.` : ""}`
+          : `The chef confirmed your order. You paid £${((order.capturedMinor ?? 0) / 100).toFixed(2)}.${order.decision?.reason ? ` Chef's note: ${order.decision.reason}.` : ""}`;
       break;
     case "voided":
       en = `The chef could not confirm this order for your party${order.decision?.reason ? `: ${order.decision.reason}` : ""}. The hold was released and you were not charged.`;

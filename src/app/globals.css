@@ -69,3 +69,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hero-story [data-step], .hero-story [data-chip], .hero-story [data-nod] { animation: none; opacity: 1; }
 }
+
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #1f5a3d; outline-offset: 2px; }
+.kitchen a:focus-visible, .kitchen button:focus-visible, .kitchen input:focus-visible { outline-color: #7fd1a0; }
+input::placeholder, textarea::placeholder { color: #6b6359; opacity: 1; }
+.kitchen input::placeholder { color: rgb(255 255 255 / 0.6); }
+@media (prefers-reduced-motion: reduce) { .arrive, .pulse-ring, .animate-pulse { animation: none; } }

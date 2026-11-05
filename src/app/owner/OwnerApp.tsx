@@ -26,10 +26,19 @@ const gridTheme = themeQuartz.withParams({
   fontSize: 13,
 });
 
-export default function OwnerApp({ restaurant, initialMenu, aiName: configuredAi }: { restaurant: Restaurant; initialMenu: Dish[]; aiName: string }) {
+export default function OwnerApp({ restaurant, initialMenu, aiName: configuredAi, simulated }: { restaurant: Restaurant; initialMenu: Dish[]; aiName: string; simulated: boolean }) {
   const aiEnabled = configuredAi !== "not configured";
   const aiName = aiEnabled ? configuredAi : "The AI";
-  const [tab, setTab] = useState<Tab>("ledger");
+  const [tab, setTabState] = useState<Tab>("ledger");
+  // The tab lives in the URL, so a reload or a shared link keeps it.
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    history.replaceState(null, "", `?tab=${t}`);
+  };
+  useEffect(() => {
+    const t = new URLSearchParams(location.search).get("tab");
+    if (t && ["ledger", "analytics", "menu", "insights", "settings"].includes(t)) setTabState(t as Tab);
+  }, []);
   const [menu, setMenu] = useState(initialMenu);
   const [orders, setOrders] = useState<OOrder[]>([]);
 
@@ -44,12 +53,13 @@ export default function OwnerApp({ restaurant, initialMenu, aiName: configuredAi
     return () => es.close();
   }, [load, restaurant.id]);
 
-  const reloadMenu = async () => setMenu((await (await fetch(`/api/menu?slug=${restaurant.slug}`)).json()).dishes);
+  const reloadMenu = async () => setMenu((await (await fetch(`/api/menu?all=1&slug=${restaurant.slug}`)).json()).dishes);
   const drafts = menu.filter((d) => !d.confirmed).length;
 
   return (
     <div className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-4 py-5">
+        <h1 className="sr-only">Owner dashboard, {restaurant.name}</h1>
         <Brand sub={`Owner · ${restaurant.name}`} />
         <nav className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-paper p-1 text-sm">
           {(
@@ -61,7 +71,7 @@ export default function OwnerApp({ restaurant, initialMenu, aiName: configuredAi
               ["settings", "Kitchen settings"],
             ] as [Tab, string][]
           ).map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)} className={`whitespace-nowrap rounded-full px-4 py-1.5 ${tab === k ? "bg-basil text-white" : "text-muted hover:text-ink"}`}>
+            <button key={k} aria-pressed={tab === k} onClick={() => setTab(k)} className={`min-h-11 whitespace-nowrap rounded-full px-4 py-1.5 ${tab === k ? "bg-basil text-white" : "text-muted hover:text-ink"}`}>
               {label}
             </button>
           ))}
@@ -72,9 +82,9 @@ export default function OwnerApp({ restaurant, initialMenu, aiName: configuredAi
       </header>
       {tab === "ledger" && <Ledger orders={orders} onChange={load} />}
       {tab === "analytics" && <Analytics orders={orders} menu={menu} aiEnabled={aiEnabled} />}
-      {tab === "menu" && <MenuStudio menu={menu} setMenu={setMenu} reload={reloadMenu} aiName={aiName} />}
-      {tab === "insights" && <Insights orders={orders} aiName={aiName} />}
-      {tab === "settings" && <Settings restaurant={restaurant} />}
+      {tab === "menu" && <MenuStudio aiEnabled={aiEnabled} menu={menu} setMenu={setMenu} reload={reloadMenu} aiName={aiName} />}
+      {tab === "insights" && <Insights aiEnabled={aiEnabled} orders={orders} aiName={aiName} />}
+      {tab === "settings" && <Settings simulated={simulated} restaurant={restaurant} />}
     </div>
   );
 }
@@ -95,12 +105,12 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
 
   const cols = useMemo<ColDef<OOrder>[]>(
     () => [
-      { headerName: "Time", field: "createdAt", width: 90, valueFormatter: (p) => new Date(p.value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), sort: "desc" },
+      { headerName: "Time", field: "createdAt", width: 115, valueFormatter: (p) => new Date(p.value).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }), sort: "desc" },
       { headerName: "Diner", field: "dinerName", width: 100 },
-      { headerName: "Channel", width: 105, valueGetter: (p) => (p.data?.channel === "agent" ? `🤖 ${p.data.agentName}` : p.data?.channel) },
+      { headerName: "Channel", width: 105, valueGetter: (p) => (p.data?.channel === "agent" ? `AI · ${p.data.agentName}` : p.data?.channel === "replay" ? "Replay" : "Web") },
       { headerName: "Allergies", flex: 1, minWidth: 110, valueGetter: (p) => p.data?.party.flatMap((x) => x.allergies.map(allergenLabel)).join(", ") || "none" },
       { headerName: "Status", field: "status", width: 185, cellRenderer: (p: { value: Order["status"] }) => <StatusBadge status={p.value} /> },
-      { headerName: "Chef", width: 120, valueGetter: (p) => (p.data?.decision ? p.data.decision.outcome.replaceAll("_", " ") : "") },
+      { headerName: "Chef", width: 120, valueGetter: (p) => (p.data?.decision ? { approved: "Approved", approved_with_changes: "Changed", declined: "Declined" }[p.data.decision.outcome] : "") },
       { headerName: "Held", field: "authorizedMinor", width: 85, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Charged", field: "capturedMinor", width: 90, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Released", width: 90, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
@@ -115,16 +125,16 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Orders" value={String(orders.length)} />
-        <Kpi label="Allergy orders" value={String(allergy.length)} />
+        <Kpi label="Declined or expired" value={String(orders.filter((o) => o.status === "voided" || o.status === "expired").length)} />
         <Kpi label="Avg time to nod" value={avgNod == null ? "–" : `${Math.floor(avgNod / 60)}m ${avgNod % 60}s`} />
         <Kpi label="Held now, awaiting chef" value={gbp(heldNow)} />
         <Kpi label="Captured" value={gbp(capturedTotal)} accent />
         <Kpi label="Released to diners" value={gbp(released)} />
       </div>
+      <p className="-mb-2 text-sm text-muted">Select an order to see its PayPal details or send a refund.</p>
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-        <AgGridReact<OOrder> theme={gridTheme} domLayout="autoHeight" pagination paginationPageSize={20} paginationPageSizeSelector={false} rowData={orders} columnDefs={cols} getRowId={(p) => p.data.id} onRowClicked={(e) => setSelectedId(e.data?.id ?? null)} animateRows overlayNoRowsTemplate="No orders yet. Place one from the order page." rowSelection={{ mode: "singleRow", enableClickSelection: true, checkboxes: false }} />
+        <AgGridReact<OOrder> onCellKeyDown={(e) => (e.event as KeyboardEvent | undefined)?.key === "Enter" && setSelectedId(e.data?.id ?? null)} theme={gridTheme} domLayout="autoHeight" pagination paginationPageSize={20} paginationPageSizeSelector={false} rowData={orders} columnDefs={cols} getRowId={(p) => p.data.id} onRowClicked={(e) => setSelectedId(e.data?.id ?? null)} animateRows overlayNoRowsTemplate="No orders yet. Place one from the order page." rowSelection={{ mode: "singleRow", enableClickSelection: true, checkboxes: false }} />
       </div>
-      <p className="-mt-2 text-xs text-muted">Select an order to see its PayPal details or send a refund.</p>
       {selected && <OrderDrawer key={`${selected.id}-${selected.refundedMinor ?? 0}`} order={selected} onClose={() => setSelectedId(null)} onChange={onChange} />}
     </div>
   );
@@ -135,24 +145,28 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
   const [amount, setAmount] = useState((left / 100).toFixed(2));
   const [reason, setReason] = useState("");
   const [msg, setMsg] = useState(order.status === "refunded" ? "Fully refunded through PayPal." : "");
+  const [confirming, setConfirming] = useState(false);
   async function refund() {
+    if (!confirming) return setConfirming(true);
+    setConfirming(false);
     const res = await fetch(`/api/orders/${order.id}/refund`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountMinor: Math.round(Number(amount) * 100), reason }) });
     const d = await res.json();
     setMsg(res.ok ? "Refund sent through PayPal." : d.error);
     if (res.ok) onChange();
   }
   return (
-    <div className="rounded-2xl border border-line bg-paper p-5">
+    <div role="dialog" aria-label={`Order details for ${order.dinerName}`} className="fixed inset-y-0 right-0 z-30 w-full max-w-md overflow-y-auto border-l border-line bg-paper p-6 shadow-2xl">
       <div className="flex items-start justify-between">
-        <div>
+        <div className="min-w-0">
           <div className="font-display text-lg font-semibold">
             {order.dinerName} · {gbp(order.authorizedMinor)}
           </div>
-          <div className="text-xs text-muted">
+          <div className="break-all text-xs text-muted">
             {order.id} · PayPal order {order.paypalOrderId}
+            {order.captureId && ` · Capture ${order.captureId}`}
           </div>
         </div>
-        <button onClick={onClose} className="text-muted">
+        <button onClick={onClose} aria-label="Close order details" className="grid h-11 w-11 shrink-0 place-items-center text-muted">
           ✕
         </button>
       </div>
@@ -171,10 +185,10 @@ function OrderDrawer({ order, onClose, onChange }: { order: OOrder; onClose: () 
       {order.status === "captured" && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="text-sm">Refund</span>
-          <input value={amount} onChange={(e) => setAmount(e.target.value)} className="w-24 rounded-lg border border-line px-2 py-1 text-sm" />
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason shown to the diner" className="min-w-0 flex-1 rounded-lg border border-line px-2 py-1 text-sm" />
-          <button onClick={refund} className="rounded-lg bg-ink px-3 py-1.5 text-sm text-white">
-            Refund via PayPal
+          <input aria-label="Refund amount in pounds" value={amount} onChange={(e) => (setAmount(e.target.value), setConfirming(false))} className="min-h-11 w-24 rounded-lg border border-[#8f8578] px-2 text-base" />
+          <input aria-label="Reason shown to the diner" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason shown to the diner" className="min-h-11 min-w-0 flex-1 rounded-lg border border-[#8f8578] px-2 text-base" />
+          <button onClick={refund} className="min-h-11 rounded-lg bg-ink px-4 text-sm text-white">
+            {confirming ? `Confirm refund of £${Number(amount).toFixed(2)}` : "Refund via PayPal"}
           </button>
         </div>
       )}
@@ -194,7 +208,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
 
 // ---------------- Menu studio ----------------
 
-function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: (m: Dish[]) => void; reload: () => Promise<void>; aiName: string }) {
+function MenuStudio({ menu, setMenu, reload, aiName, aiEnabled }: { menu: Dish[]; setMenu: (m: Dish[]) => void; reload: () => Promise<void>; aiName: string; aiEnabled: boolean }) {
   const [busy, setBusy] = useState<"" | "import" | "publish">("");
   const [msg, setMsg] = useState("");
   const [msgIsError, setMsgIsError] = useState(false);
@@ -234,22 +248,24 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-        <label className={`flex cursor-pointer items-center gap-4 rounded-2xl border-2 border-dashed border-line bg-paper p-5 hover:border-basil ${busy === "import" ? "animate-pulse" : ""}`}>
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-basil-soft text-2xl">📷</div>
+        <label className={`flex ${aiEnabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"} items-center gap-4 rounded-2xl border-2 border-dashed border-line bg-paper p-5 hover:border-basil ${busy === "import" ? "animate-pulse" : ""}`}>
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-basil-soft text-basil">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M3 8h4l2-3h6l2 3h4v11H3z" strokeLinejoin="round" /><circle cx="12" cy="13" r="3.5" /></svg>
+          </div>
           <div>
             <div className="font-medium">Import a menu photo</div>
-            <div className="text-sm text-muted">{aiName} reads the dishes and drafts the 14-allergen matrix. Low-confidence rows are flagged for you.</div>
+            <div className="text-sm text-muted">{aiEnabled ? `${aiName} reads the dishes and drafts the 14-allergen matrix. Low-confidence rows are flagged for you.` : "Needs an AI key on this server."}</div>
           </div>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && importPhoto(e.target.files[0])} disabled={!!busy} />
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && importPhoto(e.target.files[0])} disabled={!!busy || !aiEnabled} />
         </label>
-        <button onClick={publish} disabled={!!busy} className="rounded-2xl bg-basil px-5 py-4 text-sm font-medium text-white disabled:opacity-50">
-          {busy === "publish" ? "Syncing…" : "Sync confirmed dishes to PayPal catalog"}
+        <button onClick={publish} disabled={!!busy} className="self-center rounded-full border border-basil px-5 py-2.5 text-sm font-medium text-basil disabled:opacity-50">
+          {busy === "publish" ? "Syncing…" : "Sync to PayPal catalog"}
         </button>
       </div>
       <div className="-mt-2 text-sm text-muted">
         No menu to hand?{" "}
         <button
-          disabled={!!busy}
+          disabled={!!busy || !aiEnabled}
           onClick={async () => {
             const blob = await (await fetch("/demo/fennel-room-menu.jpg")).blob();
             importPhoto(new File([blob], "fennel-room-menu.jpg", { type: "image/jpeg" }));
@@ -280,8 +296,8 @@ function MenuStudio({ menu, setMenu, reload, aiName }: { menu: Dish[]; setMenu: 
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-wider text-muted">
             <tr>
               <th className="px-4 py-3">Dish</th>
@@ -399,7 +415,7 @@ function AllergenEditor({ value, onChange, editing, tone = "neutral" }: { value:
 
 // ---------------- Insights ----------------
 
-function Insights({ orders, aiName }: { orders: OOrder[]; aiName: string }) {
+function Insights({ orders, aiName, aiEnabled }: { orders: OOrder[]; aiName: string; aiEnabled: boolean }) {
   const [report, setReport] = useState("");
   const [busy, setBusy] = useState(false);
   const byAllergen = ALLERGENS.map((a) => ({ a, n: orders.filter((o) => o.party.some((p) => p.allergies.includes(a.id))).length })).filter((x) => x.n > 0).sort((x, y) => y.n - x.n);
@@ -419,7 +435,7 @@ function Insights({ orders, aiName }: { orders: OOrder[]; aiName: string }) {
   }
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <Copilot aiName={aiName} />
+      <Copilot aiName={aiName} aiEnabled={aiEnabled} />
       <div className="rounded-2xl border border-line bg-paper p-5">
         <h3 className="mb-4 font-display text-lg font-semibold">Allergies your diners declare</h3>
         {byAllergen.length === 0 && <p className="text-sm text-muted">No allergy orders yet.</p>}
@@ -450,18 +466,18 @@ function Insights({ orders, aiName }: { orders: OOrder[]; aiName: string }) {
       <div className="rounded-2xl border border-line bg-paper p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold">Menu risk report</h3>
-          <button onClick={run} disabled={busy} className="rounded-full bg-basil px-4 py-1.5 text-sm text-white disabled:opacity-50">
+          <button onClick={run} disabled={busy || !aiEnabled} className="min-h-11 rounded-full bg-basil px-4 text-sm text-white disabled:opacity-50">
             {busy ? "Writing…" : "Write this week's report"}
           </button>
         </div>
-        <p className="mb-3 text-sm text-muted">{aiName} looks at which dishes force sign-offs, edits and declines, and suggests one recipe, swap or wording change for each.</p>
+        <p className="mb-3 text-sm text-muted">{aiEnabled ? "" : "Needs an AI key on this server. "}{aiName} looks at which dishes force sign-offs, edits and declines, and suggests one recipe, swap or wording change for each.</p>
         <div className="whitespace-pre-wrap rounded-xl bg-cream p-4 text-sm leading-relaxed">{report || "No report yet."}</div>
       </div>
     </div>
   );
 }
 
-function Copilot({ aiName }: { aiName: string }) {
+function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) {
   const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string; tools?: string[] }[]>([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -480,11 +496,11 @@ function Copilot({ aiName }: { aiName: string }) {
   return (
     <div className="flex flex-col rounded-2xl border border-line bg-paper p-5 lg:row-span-2">
       <h3 className="font-display text-lg font-semibold">Ask about your money</h3>
-      <p className="mb-3 text-sm text-muted">{aiName} answers from Chef&rsquo;s Nod&rsquo;s records and PayPal&rsquo;s own MCP server. It can look things up; only you can move money.</p>
+      <p className="mb-3 text-sm text-muted">{aiEnabled ? "" : "Needs an AI key on this server. "}{aiName} answers from Chef&rsquo;s Nod&rsquo;s records and PayPal&rsquo;s own MCP server. It can look things up; only you can move money.</p>
       <div className="flex-1 space-y-3 overflow-y-auto">
         {msgs.length === 0 &&
           SUGGEST.map((s) => (
-            <button key={s} onClick={() => ask(s)} className="block w-full rounded-xl border border-line bg-cream px-3 py-2 text-left text-sm hover:border-basil">
+            <button key={s} disabled={!aiEnabled} onClick={() => ask(s)} className="block w-full rounded-xl border disabled:opacity-60 border-line bg-cream px-3 py-2 text-left text-sm hover:border-basil">
               {s}
             </button>
           ))}
@@ -495,7 +511,7 @@ function Copilot({ aiName }: { aiName: string }) {
               <div className="mt-1 flex flex-wrap gap-1">
                 {m.tools.map((t) => (
                   <span key={t} className={`rounded-full px-2 py-0.5 font-mono text-[10px] ${t.startsWith("chefs_nod") ? "bg-basil-soft text-basil" : "bg-[#e8f1fc] text-pp-blue"}`}>
-                    {t.startsWith("chefs_nod") ? t : `PayPal MCP · ${t}`}
+                    {t.startsWith("chefs_nod") || t === "paypal_transactions" ? t : `PayPal MCP · ${t}`}
                   </span>
                 ))}
               </div>
@@ -511,7 +527,7 @@ function Copilot({ aiName }: { aiName: string }) {
         }}
         className="mt-3 flex gap-2"
       >
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about orders, holds, refunds…" className="min-w-0 flex-1 rounded-full border border-line bg-cream px-4 py-2 text-sm outline-none focus:border-basil" />
+        <input disabled={!aiEnabled} aria-label="Ask about your money" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about orders, holds, refunds…" className="min-w-0 flex-1 rounded-full border border-[#8f8578] bg-cream px-4 py-2 text-sm outline-none focus:border-basil" />
         <button disabled={busy || !q.trim()} className="rounded-full bg-basil px-4 py-2 text-sm text-white disabled:opacity-40">
           Ask
         </button>
@@ -522,7 +538,7 @@ function Copilot({ aiName }: { aiName: string }) {
 
 // ---------------- Settings ----------------
 
-function Settings({ restaurant }: { restaurant: Restaurant }) {
+function Settings({ restaurant, simulated }: { restaurant: Restaurant; simulated: boolean }) {
   const [notes, setNotes] = useState(restaurant.kitchenNotes);
   const [minutes, setMinutes] = useState(restaurant.signoffMinutes);
   const [saved, setSaved] = useState(false);
@@ -532,28 +548,30 @@ function Settings({ restaurant }: { restaurant: Restaurant }) {
     setTimeout(() => setSaved(false), 1500);
   }
   return (
-    <div className="max-w-2xl space-y-5 rounded-2xl border border-line bg-paper p-6">
+    <div className="max-w-2xl space-y-5">
+    <div className="space-y-5 rounded-2xl border border-line bg-paper p-6">
       <div>
-        <label className="font-medium">Kitchen notes for the sign-off assistant</label>
+        <label htmlFor="kitchen-notes" className="font-medium">Kitchen notes for the sign-off assistant</label>
         <p className="mb-2 text-sm text-muted">Shared fryers, shared prep areas, anything that creates cross-contact. The assistant uses this to ask the right question on each ticket.</p>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} className="w-full rounded-xl border border-line bg-cream p-3 text-sm outline-none focus:border-basil" />
+        <textarea id="kitchen-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} className="w-full rounded-xl border border-[#8f8578] bg-cream p-3 text-base outline-none focus:border-basil" />
       </div>
       <div>
-        <label className="font-medium">Auto-release unanswered orders after</label>
+        <label htmlFor="signoff-minutes" className="font-medium">Auto-release unanswered orders after</label>
         <div className="mt-2 flex items-center gap-2">
-          <input type="number" min={2} max={60} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className="w-20 rounded-lg border border-line px-2 py-1" /> minutes
+          <input id="signoff-minutes" type="number" min={2} max={60} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className="min-h-11 w-20 rounded-lg border border-[#8f8578] px-2 text-base" /> minutes
         </div>
         <p className="mt-1 text-sm text-muted">If nobody nods in time, the PayPal authorization is voided and the diner is told.</p>
       </div>
       <button onClick={save} className="rounded-full bg-basil px-5 py-2 text-sm font-medium text-white">
         {saved ? "Saved" : "Save"}
       </button>
-      <DemoTools />
+    </div>
+    <DemoTools simulated={simulated} />
     </div>
   );
 }
 
-function DemoTools() {
+function DemoTools({ simulated }: { simulated: boolean }) {
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   async function run(count: number, decide: boolean, label: string) {
@@ -562,12 +580,12 @@ function DemoTools() {
     const res = await fetch("/api/demo/replay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ count, decide }) });
     const d = await res.json();
     setBusy("");
-    setMsg(res.ok ? `${d.orders.length} orders created on PayPal sandbox test cards${decide ? " and decided" : ", waiting on the kitchen screen"}.` : d.error);
+    setMsg(res.ok ? `${d.orders.length} orders created ${simulated ? "with simulated holds" : "on PayPal sandbox test cards"}${decide ? " and decided" : ", waiting on the kitchen screen"}.` : d.error);
   }
   return (
-    <div className="border-t border-line pt-5">
-      <div className="font-medium">Demo: Friday service</div>
-      <p className="mb-3 text-sm text-muted">Creates realistic allergy orders whose money is really held in the PayPal sandbox, using PayPal&rsquo;s published test card. Labelled as replay orders everywhere.</p>
+    <div className="rounded-2xl border border-dashed border-line bg-cream p-6">
+      <h3 className="font-display text-lg font-semibold">Demo tools</h3>
+      <p className="mb-3 text-sm text-muted">{simulated ? "Creates realistic allergy orders with simulated PayPal holds." : "Creates realistic allergy orders whose money is really held in the PayPal sandbox, using PayPal\u2019s published test card."} Labelled as replay orders everywhere. The history button dates them across the past week, with sample nod times.</p>
       <div className="flex flex-wrap gap-2">
         <button disabled={!!busy} onClick={() => run(6, false, "rush")} className="rounded-full border border-basil px-4 py-2 text-sm text-basil disabled:opacity-40">
           {busy === "rush" ? "Creating…" : "Send 6 orders to the kitchen"}

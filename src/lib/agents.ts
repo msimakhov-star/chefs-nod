@@ -2,7 +2,8 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { aiProvider } from "./ai";
 import { ALLERGEN_IDS, allergenLabel } from "./allergens";
-import type { Conflict } from "./conflicts";
+import { findConflicts, keepDeclaredAllergies, type Conflict } from "./conflicts";
+import { kv } from "./db";
 import type { Dish, KitchenCheck, Order, Person, Restaurant } from "./types";
 
 const allergenEnum = z.enum(ALLERGEN_IDS as [string, ...string[]]);
@@ -82,6 +83,7 @@ Write one question per conflicting item (use its itemId). Name the component tha
       risk: riskLevel === "none" && crossContact ? "check" : riskLevel,
       headline: trimLine(output.headline, 80) || fallback.headline,
       questions,
+      extraRisks: output.extraCrossContactRisks.map((r) => trimLine(r, 140)).slice(0, 4),
       dinerSummary: fallback.dinerSummary,
     };
   } catch (e) {
@@ -128,19 +130,32 @@ People already noted: ${JSON.stringify(currentParty)}`,
   if (!output) throw new Error("The ordering assistant returned nothing");
   const valid = new Set(dishes.filter((d) => d.confirmed && d.available).map((d) => d.id));
   output.items = output.items.filter((i) => valid.has(i.dishId));
-  return output;
+  const party = keepDeclaredAllergies(currentParty, output.party as Person[]).map((p) => ({ ...p, notes: p.notes ?? "" }));
+  const language = /^[a-z]{2,3}(-[a-z0-9]+)*$/i.test(output.language) ? output.language : "en";
+  // The model's words can be wrong, so the rules engine's facts always follow them, and dish ids never reach the diner.
+  const named = (t: string) => dishes.reduce((s, d) => s.replaceAll(d.id, d.name), t);
+  const lines = output.items.map((i, n) => ({ id: `i${n}`, dishId: i.dishId, dishName: dishes.find((d) => d.id === i.dishId)!.name, forPerson: i.forPerson, qty: i.qty, unitPriceMinor: 0 }));
+  const facts = findConflicts(lines, party, (id) => dishes.find((d) => d.id === id) ?? null).map(
+    (c) => `${c.dishName} for ${c.person}: ${[c.contains.length && `contains ${c.contains.map(allergenLabel).join(", ")}`, c.mayContain.length && `may contain ${c.mayContain.map(allergenLabel).join(", ")}`].filter(Boolean).join("; ")}.`,
+  );
+  const reply = [named(output.reply), facts.length && `From the kitchen's confirmed list:\n${facts.join("\n")}`].filter(Boolean).join("\n\n");
+  return { ...output, reply, party, language };
 }
 
 // ---------- 3. Translation for diner-facing messages ----------
 
 export async function translate(text: string, language: string) {
   if (!language || language.startsWith("en")) return text;
+  const cacheKey = `tr:${language}:${text}`; // agents poll order status, so never pay twice for the same sentence
+  const cached = kv.get(cacheKey);
+  if (cached) return cached;
   try {
     const { text: out } = await generateText({
       model: aiProvider().fast,
       system: "Translate the message for a restaurant customer. Keep dish names recognisable, keep numbers and prices exact. Output only the translation.",
       prompt: `Target language: ${language}\n\n${text}`,
     });
+    if (out.trim()) kv.set(cacheKey, out.trim());
     return out.trim() || text;
   } catch {
     return text;

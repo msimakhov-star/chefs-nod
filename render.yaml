@@ -22,3 +22,7 @@ services:
         sync: false
       - key: PUBLIC_URL
         sync: false
+      - key: STAFF_KEY
+        generateValue: true
+      - key: STAFF_KEY_HINT # prints the key on /staff so judges can get in; a real restaurant removes this
+        value: "1"

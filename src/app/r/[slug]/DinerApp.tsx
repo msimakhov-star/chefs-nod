@@ -35,20 +35,30 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
   const [language, setLanguage] = useState("en");
   const [speechLang, setSpeechLang] = useState("en-GB");
   const [listening, setListening] = useState(false);
-  const [tab, setTab] = useState<"assistant" | "menu">("assistant");
+  const aiReady = aiName !== "not configured";
+  const [tab, setTab] = useState<"assistant" | "menu">(aiReady ? "assistant" : "menu");
   const [dinerName, setDinerName] = useState("");
   const [readStatement, setReadStatement] = useState(false);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
   const [chatError, setChatError] = useState("");
   const [hideConflicts, setHideConflicts] = useState(false);
-  const aiReady = aiName !== "not configured";
+  const payRef = useRef<HTMLDivElement>(null);
+  const [payVisible, setPayVisible] = useState(false);
   const recRef = useRef<{ stop: () => void } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  // The phone's basket bar steps aside once the pay card is on screen, so it never competes with the PayPal button.
+  useEffect(() => {
+    if (!payRef.current) return setPayVisible(false);
+    const io = new IntersectionObserver(([e]) => setPayVisible(e.isIntersecting));
+    io.observe(payRef.current);
+    return () => io.disconnect();
+  }, [lines.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Remember who eats with you and their allergies, on this device only.
   const PARTY_KEY = "chefsnod.party";
@@ -164,17 +174,17 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
       <header className="flex flex-wrap items-center justify-between gap-3 py-5">
         <Brand sub="Allergy orders the chef signs off before you pay" />
         <div className="sm:text-right">
-          <div className="font-display text-lg font-semibold">{restaurant.name}</div>
-          <div className="text-xs text-muted">{restaurant.city} · collection and delivery</div>
+          <h1 className="font-display text-lg font-semibold">{restaurant.name}</h1>
+          <div className="text-xs text-muted">{restaurant.city} · collection only</div>
         </div>
       </header>
 
       <div className="grid flex-1 gap-5 lg:grid-cols-[1.15fr_1fr]">
         {/* Left: assistant or menu */}
         <section className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-line bg-paper shadow-sm">
-          <div className="flex border-b border-line text-sm">
+          <div role="tablist" className="flex border-b border-line text-sm">
             {(["assistant", "menu"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`flex-1 px-4 py-3 font-medium ${tab === t ? "border-b-2 border-basil text-basil" : "text-muted hover:text-ink"}`}>
+              <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`min-h-11 flex-1 px-4 py-3 font-medium ${tab === t ? "border-b-2 border-basil text-basil" : "text-muted hover:text-ink"}`}>
                 {t === "assistant" ? "Ask the ordering assistant" : "Browse the menu"}
               </button>
             ))}
@@ -182,8 +192,16 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
 
           {tab === "assistant" ? (
             <>
-              <div className="flex-1 space-y-3 overflow-y-auto p-5">
-                {messages.length === 0 && (
+              <div aria-live="polite" className="flex-1 space-y-3 overflow-y-auto p-5">
+                {!aiReady && (
+                  <div className="rounded-xl bg-saffron-soft px-4 py-4 text-[#8a5a10]">
+                    <p>The ordering assistant is off on this server. You can still order from the menu, and the chef still checks every allergy.</p>
+                    <button onClick={() => setTab("menu")} className="mt-3 min-h-11 rounded-full bg-basil px-5 font-medium text-white">
+                      Browse the menu
+                    </button>
+                  </div>
+                )}
+                {aiReady && messages.length === 0 && (
                   <div className="space-y-4">
                     <p className="text-sm text-muted">
                       Tell the assistant who is eating and what they can&rsquo;t have, in any language. It builds the basket from the restaurant&rsquo;s confirmed allergen menu, then the chef checks it before you&rsquo;re charged.
@@ -213,12 +231,14 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                 )}
                 <div ref={endRef} />
               </div>
+              {aiReady && (
+              <>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   send(input);
                 }}
-                className="flex items-center gap-2 border-t border-line p-3"
+                className="flex flex-wrap items-center gap-2 border-t border-line p-3"
               >
                 <select value={speechLang} onChange={(e) => setSpeechLang(e.target.value)} className="shrink-0 rounded-lg border border-line bg-cream px-1.5 py-2 text-xs" aria-label="Voice language" title="Language for voice input">
                   {LANGS.map((l) => (
@@ -233,27 +253,22 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                     <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
                   </svg>
                 </button>
-                <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? "Listening…" : "Who's eating, and what can't they have?"} className="min-w-0 flex-1 rounded-full border border-line bg-cream px-4 py-2.5 text-[15px] outline-none focus:border-basil" />
+                <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? "Listening…" : "Who's eating? Any allergies?"} aria-label="Your message" className="order-first min-w-0 flex-1 basis-full rounded-full border border-[#8f8578] bg-cream px-4 py-2.5 text-base outline-none focus:border-basil sm:order-none sm:basis-0" />
                 <button disabled={!input.trim() || thinking} className="rounded-full bg-basil px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">
                   Send
                 </button>
               </form>
-              <div className="px-4 pb-2 text-[11px] text-muted">{aiReady ? `Assistant: ${aiName}. ` : "The assistant is offline on this server, so browse the menu instead. "}It only uses the owner-confirmed allergen menu and never promises a dish is safe.</div>
+              <div className="px-4 pb-2 text-xs text-muted">Assistant: {aiName}. It can make mistakes, so check your basket. The allergen statement you tick before paying comes only from the owner&rsquo;s confirmed rows, and the chef still decides.</div>
+              </>
+              )}
             </>
           ) : (
             <div className="flex-1 space-y-6 overflow-y-auto p-5">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                <span>
-                  <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-line bg-cream align-[-1px]" />
-                  contains
-                  <span className="ml-3 mr-1 inline-block h-2.5 w-2.5 rounded-full bg-saffron align-[-1px]" />
-                  may contain
-                  <span className="ml-3 mr-1 inline-block h-2.5 w-2.5 rounded-full bg-chili align-[-1px]" />
-                  matches your party
-                </span>
+                <span>Solid chips: contains. Dashed chips: may contain. Red marks an allergy in your party.</span>
                 {party.some((p) => p.allergies.length) && (
-                  <label className="flex items-center gap-1.5">
-                    <input type="checkbox" checked={hideConflicts} onChange={(e) => setHideConflicts(e.target.checked)} className="accent-basil" />
+                  <label className="flex min-h-11 items-center gap-2">
+                    <input type="checkbox" checked={hideConflicts} onChange={(e) => setHideConflicts(e.target.checked)} className="h-5 w-5 accent-basil" />
                     Hide dishes with your party&rsquo;s allergens
                   </label>
                 )}
@@ -263,8 +278,11 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                   <h3 className="mb-2 font-display text-lg font-semibold">{cat}</h3>
                   <div className="divide-y divide-line">
                     {list.map((d) => {
-                      const hits = party.flatMap((p) => p.allergies).filter((a) => d.contains.includes(a));
-                      if (hideConflicts && hits.length) return null;
+                      const mine = party.flatMap((p) => p.allergies);
+                      const hits = mine.filter((a) => d.contains.includes(a));
+                      const mayHits = mine.filter((a) => d.mayContain.includes(a) && !d.contains.includes(a));
+                      if (hideConflicts && (hits.length || mayHits.length)) return null;
+                      const inBasket = lines.filter((l) => l.dishId === d.id).length;
                       return (
                         <div key={d.id} className="flex items-start justify-between gap-4 py-3">
                           <div className="min-w-0">
@@ -277,14 +295,14 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                               {d.mayContain
                                 .filter((a) => !d.contains.includes(a))
                                 .map((a) => (
-                                  <AllergenChip key={a} id={a} small tone="may" />
+                                  <AllergenChip key={a} id={a} small tone={mayHits.includes(a) ? "mayConflict" : "may"} />
                                 ))}
                             </div>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1.5">
                             <div className="font-medium">{gbp(d.priceMinor)}</div>
-                            <button onClick={() => addDish(d)} className="rounded-full border border-basil px-3 py-1 text-xs font-medium text-basil hover:bg-basil hover:text-white">
-                              Add
+                            <button onClick={() => addDish(d)} aria-label={`Add ${d.name}`} className="min-h-11 min-w-16 rounded-full border border-basil px-4 text-sm font-medium text-basil hover:bg-basil hover:text-white">
+                              {inBasket ? `Added · ${inBasket}` : "Add"}
                             </button>
                           </div>
                         </div>
@@ -298,11 +316,11 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
         </section>
 
         {/* Right: party, basket, statement, pay */}
-        <section className="flex flex-col gap-4">
-          <div className="rounded-2xl border border-line bg-paper p-5 shadow-sm">
+        <section className="contents lg:sticky lg:top-4 lg:flex lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:gap-4 lg:self-start lg:overflow-y-auto">
+          <div className="order-first rounded-2xl border border-line bg-paper p-5 shadow-sm lg:order-none">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold">Who&rsquo;s eating</h2>
-              <button onClick={() => setParty((p) => [...p, { name: `Guest ${p.length + 1}`, allergies: [], notes: "" }])} className="text-sm font-medium text-basil">
+              <button onClick={() => setParty((p) => [...p, { name: `Guest ${p.length + 1}`, allergies: [], notes: "" }])} className="min-h-11 px-2 text-sm font-medium text-basil">
                 + Add person
               </button>
             </div>
@@ -346,7 +364,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                           </div>
                           <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                             for
-                            <select value={l.forPerson} onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, forPerson: e.target.value } : x)))} className="rounded border border-line bg-cream px-1 py-0.5">
+                            <select value={l.forPerson} onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, forPerson: e.target.value } : x)))} aria-label={`Who the ${d.name} is for`} className="min-h-11 rounded border border-[#8f8578] bg-cream px-2 text-base">
                               {people.map((n) => (
                                 <option key={n}>{n}</option>
                               ))}
@@ -355,7 +373,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium">{gbp(d.priceMinor * l.qty)}</span>
-                          <button onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="text-muted hover:text-chili" aria-label="Remove">
+                          <button onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="grid h-11 w-11 place-items-center text-muted hover:text-chili" aria-label={`Remove ${d.name}`}>
                             ✕
                           </button>
                         </div>
@@ -382,7 +400,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
           </div>
 
           {lines.length > 0 && (
-            <div className="rounded-2xl border border-line bg-paper p-5 shadow-sm">
+            <div ref={payRef} className="rounded-2xl border border-line bg-paper p-5 shadow-sm">
               <h2 className="mb-2 font-display text-lg font-semibold">Allergen information</h2>
               <p className="mb-3 text-xs text-muted">From the restaurant&rsquo;s confirmed allergen matrix. Shown before you pay, as UK food law expects for remote orders.</p>
               <ul className="mb-4 space-y-1.5 text-sm">
@@ -405,25 +423,26 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
                   );
                 })}
               </ul>
-              <label className="mb-4 flex items-start gap-2 text-sm">
-                <input type="checkbox" checked={readStatement} onChange={(e) => setReadStatement(e.target.checked)} className="mt-1 accent-basil" />I have read the allergen information for everyone I&rsquo;m ordering for.
+              <label htmlFor="diner-name" className="mb-1 block text-sm font-medium">Your name, for the order</label>
+              <input id="diner-name" value={dinerName} onChange={(e) => setDinerName(e.target.value)} className="mb-3 w-full rounded-lg border border-[#8f8578] bg-cream px-3 py-2 text-base outline-none focus:border-basil" />
+              <label className="mb-4 flex items-start gap-3 py-2 text-sm">
+                <input type="checkbox" checked={readStatement} onChange={(e) => setReadStatement(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-basil" />I have read the allergen information for everyone I&rsquo;m ordering for.
               </label>
-              <input value={dinerName} onChange={(e) => setDinerName(e.target.value)} placeholder="Your name (for the order)" className="mb-4 w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm outline-none focus:border-basil" />
               <div className="mb-3 flex items-baseline justify-between">
                 <span className="text-sm text-muted">PayPal holds</span>
                 <span className="font-display text-2xl font-semibold">{gbp(total)}</span>
               </div>
-              <button onClick={pay} disabled={!readStatement || paying} className="w-full rounded-full bg-pp-gold px-5 py-3.5 text-[15px] font-semibold text-pp-blue shadow-sm transition hover:brightness-95 disabled:opacity-40">
+              <button onClick={pay} disabled={!readStatement || paying} className="w-full rounded-full bg-pp-gold px-5 py-3.5 text-[15px] font-semibold text-pp-blue shadow-sm transition hover:brightness-95 disabled:bg-line disabled:text-muted disabled:shadow-none">
                 {paying ? "Opening PayPal…" : "Approve the hold with PayPal"}
               </button>
-              {!readStatement && <p className="mt-2.5 text-center text-xs font-medium text-chili">Tick the box above to continue.</p>}
+              {!readStatement && <p className="mt-2.5 text-center text-xs font-medium text-muted">Tick the box above to continue.</p>}
               <p className="mt-2.5 text-center text-xs text-muted">You are only charged after the chef confirms. If they change a dish the price can only go down; if they decline, the hold is released.</p>
             </div>
           )}
           {error && <div className="rounded-xl bg-chili-soft px-4 py-3 text-sm text-chili">{error}</div>}
         </section>
       </div>
-      {lines.length > 0 && (
+      {lines.length > 0 && !payVisible && (
         <a href="#basket" className="fixed inset-x-4 bottom-4 z-10 flex items-center justify-between rounded-full bg-basil px-5 py-3 text-white shadow-lg lg:hidden">
           <span className="text-sm">
             {lines.length} item{lines.length > 1 ? "s" : ""}
@@ -441,12 +460,12 @@ function PersonRow({ person, onChange, onRemove }: { person: Person; onChange: (
   return (
     <div className="rounded-xl border border-line p-3">
       <div className="flex items-center gap-2">
-        <input value={person.name} onChange={(e) => onChange({ ...person, name: e.target.value })} className="min-w-0 flex-1 bg-transparent font-medium outline-none" aria-label="Name" />
-        <button onClick={() => setOpen((o) => !o)} className="text-xs font-medium text-basil">
+        <input value={person.name} onChange={(e) => onChange({ ...person, name: e.target.value })} className="min-w-0 flex-1 rounded border-b border-[#8f8578] bg-transparent py-1 text-base font-medium outline-none" aria-label="Name" />
+        <button aria-expanded={open} onClick={() => setOpen((o) => !o)} className="min-h-11 px-2 text-sm font-medium text-basil">
           {open ? "Done" : "Edit allergies"}
         </button>
         {onRemove && (
-          <button onClick={onRemove} className="text-xs text-muted hover:text-chili">
+          <button onClick={onRemove} aria-label={`Remove ${person.name}`} className="min-h-11 px-2 text-sm text-muted hover:text-chili">
             Remove
           </button>
         )}
@@ -462,8 +481,9 @@ function PersonRow({ person, onChange, onRemove }: { person: Person; onChange: (
             return (
               <button
                 key={a.id}
+                aria-pressed={on}
                 onClick={() => onChange({ ...person, allergies: on ? person.allergies.filter((x) => x !== a.id) : [...person.allergies, a.id as AllergenId] })}
-                className={`rounded-full border px-2.5 py-1 text-xs ${on ? "border-chili bg-chili text-white" : "border-line bg-cream hover:border-ink"}`}
+                className={`min-h-11 rounded-full border px-3 py-1 text-sm ${on ? "border-chili bg-chili text-white" : "border-line bg-cream hover:border-ink"}`}
               >
                 {a.label}
               </button>

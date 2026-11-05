@@ -29,13 +29,29 @@ export function planSwaps(dish: Dish, allergies: Set<AllergenId>) {
   return { swapIds: chosen, resolvable: left.length === 0 };
 }
 
+const nameKey = (s: string) => s.trim().toLowerCase();
+
+/** Whose allergies apply to an item. A name nobody declared gets everyone's allergies: a typo or an AI's "my son" must never hide one. */
+export function allergiesFor(party: Person[], forPerson: string): Set<AllergenId> {
+  const person = party.find((p) => nameKey(p.name) === nameKey(forPerson));
+  return new Set(person ? person.allergies : party.flatMap((p) => p.allergies));
+}
+
+/** The AI may add an allergy but never remove one the diner already declared, or drop the person. */
+export function keepDeclaredAllergies(declared: Person[], proposed: Person[]): Person[] {
+  const merged = proposed.map((p) => {
+    const before = declared.find((d) => nameKey(d.name) === nameKey(p.name));
+    return before ? { ...p, allergies: [...new Set([...before.allergies, ...p.allergies])], notes: p.notes || before.notes } : p;
+  });
+  return [...merged, ...declared.filter((d) => !proposed.some((p) => nameKey(p.name) === nameKey(d.name)))];
+}
+
 export function findConflicts(items: OrderItem[], party: Person[], dishById: (id: string) => Dish | null): Conflict[] {
   const out: Conflict[] = [];
   for (const item of items) {
     const dish = dishById(item.dishId);
     if (!dish) continue;
-    const person = party.find((p) => p.name.toLowerCase() === item.forPerson.toLowerCase());
-    const allergies = new Set(person?.allergies ?? []);
+    const allergies = allergiesFor(party, item.forPerson);
     const contains = dish.contains.filter((a) => allergies.has(a));
     const mayContain = dish.mayContain.filter((a) => allergies.has(a) && !contains.includes(a));
     if (!contains.length && !mayContain.length) continue;

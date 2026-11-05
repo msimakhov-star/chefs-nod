@@ -27,8 +27,8 @@ function toMessages(items: Item[]): ModelMessage[] {
   const out: ModelMessage[] = [];
   for (const it of items) {
     if (it.type === "message" && it.kind !== "output") {
-      const text = (it.content ?? []).map((c) => c.text ?? "").join("\n");
-      out.push(it.role === "system" || it.role === "developer" ? { role: "system", content: text } : { role: "user", content: text });
+      if (it.role === "system" || it.role === "developer") continue; // lifted into the system parameter below
+      out.push({ role: "user", content: (it.content ?? []).map((c) => c.text ?? "").join("\n") });
     } else if (it.type === "message") {
       out.push({ role: "assistant", content: (it.content ?? []).map((c) => ({ type: "text" as const, text: c.text ?? c.refusal ?? "" })) });
     } else if (it.type === "function_call") {
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
     const result = await generateText({
       model,
-      system: body.instructions,
+      system: [body.instructions, ...body.input.filter((i) => i.type === "message" && i.kind !== "output" && (i.role === "system" || i.role === "developer")).map((i) => (i.content ?? []).map((c) => c.text ?? "").join("\n"))].filter(Boolean).join("\n\n") || undefined,
       messages,
       ...(Object.keys(tools).length && body.toolChoice !== "none" ? { tools, toolChoice } : {}),
       ...(wantsJson && !Object.keys(tools).length ? { output: Output.object({ schema: jsonSchema((body.responseFormat as { schema: Record<string, unknown> }).schema as never) }) } : {}),

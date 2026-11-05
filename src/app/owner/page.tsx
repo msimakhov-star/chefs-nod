@@ -12,7 +12,7 @@ export default function Page() {
   return (
     <>
       <SandboxBanner simulated={isSimulated()} />
-      <OwnerApp restaurant={r} initialMenu={dishes.list(r.id)} aiName={aiName()} />
+      <OwnerApp restaurant={r} initialMenu={dishes.list(r.id)} aiName={aiName()} simulated={isSimulated()} />
     </>
   );
 }

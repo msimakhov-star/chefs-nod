@@ -2,19 +2,13 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { restaurants } from "@/lib/db";
 import { isSimulated } from "@/lib/paypal";
+import { aiName } from "@/lib/ai";
 import { Brand, SandboxBanner } from "@/components/ui";
 import CopyButton from "@/components/CopyButton";
 import FlowDiagram from "@/components/FlowDiagram";
 import HeroStory from "@/components/HeroStory";
 
 export const dynamic = "force-dynamic";
-
-const STEPS = [
-  { n: "1", title: "Order in plain words", body: "A parent, a carer or their AI assistant says who is eating and what they can't have. The assistant builds a basket from the owner-confirmed allergen menu.", api: "Claude / Gemini · MCP server" },
-  { n: "2", title: "PayPal holds the money", body: "The diner approves in PayPal, but the order uses intent AUTHORIZE: the money is held, not taken.", api: "Orders v2 · AUTHORIZE" },
-  { n: "3", title: "The chef reads the allergy", body: "The kitchen screen shows an AI-written question for every risky item, plus the swaps that remove the allergen.", api: "AI sign-off agent · webhooks" },
-  { n: "4", title: "Nod, change, or decline", body: "Approve: capture. Approve with changes: capture a lower amount with a note to the payer. Decline: void the hold.", api: "Payments v2 · capture / void" },
-];
 
 export default async function Home() {
   const r = restaurants.first()!;
@@ -37,11 +31,10 @@ export default async function Home() {
 
         <section className="grid items-center gap-10 py-10 lg:grid-cols-[1.2fr_1fr]">
           <div>
-            <div className="mb-4 inline-flex rounded-full bg-basil-soft px-3 py-1 text-xs font-medium text-basil">For independent restaurants, and the AI assistants that will order from them</div>
-            <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-              The diner approves the money.
-              <br />
-              <span className="text-basil">The chef approves the food.</span>
+            <div className="mb-4 inline-flex rounded-2xl bg-basil-soft px-3 py-1 text-xs font-medium text-basil">For independent restaurants, and the AI assistants that will order from them</div>
+            <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
+              <span className="block text-balance">The diner approves the money.</span>
+              <span className="block text-balance text-basil">The chef approves the food.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
               An AI can&rsquo;t promise that a dish is free of sesame. Only the kitchen knows about the shared fryer. Chef&rsquo;s Nod lets people, and their AI assistants, order for someone with an allergy while PayPal holds the money until the chef has read the allergy and said yes.
@@ -57,7 +50,7 @@ export default async function Home() {
                 Owner dashboard →
               </Link>
             </div>
-            <p className="mt-4 text-xs text-muted">Tip for the demo: open the kitchen screen in a second window, then order.</p>
+            <p className="mt-4 text-xs text-muted">Open the kitchen screen in a second window, then order.</p>
           </div>
           <HeroStory />
         </section>
@@ -68,16 +61,16 @@ export default async function Home() {
               <h2 className="font-display text-2xl font-semibold">Try it in 60 seconds</h2>
               <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed">
                 <li>
-                  Open the <Link href="/kitchen" className="font-medium text-basil underline-offset-2 hover:underline">kitchen screen</Link> in a second window.
+                  Open the <Link href="/kitchen" target="_blank" className="font-medium text-basil underline-offset-2 hover:underline">kitchen screen</Link> in a second window.
                 </li>
                 <li>
-                  On the <Link href={`/r/${r.slug}`} className="font-medium text-basil underline-offset-2 hover:underline">order page</Link>, tap the first example: dinner for someone with a sesame allergy.
+                  On the <Link href={`/r/${r.slug}`} className="font-medium text-basil underline-offset-2 hover:underline">order page</Link>, {aiName() === "not configured" ? "add the Halloumi burger, then give Me a sesame allergy." : "tap the first example: dinner for someone with a sesame allergy."}
                 </li>
-                <li>Approve the hold in PayPal with the sandbox buyer below. You are not charged.</li>
-                <li>In the kitchen, pick the swaps the AI suggests and nod. Watch PayPal capture the lower amount, or decline and watch the hold disappear.</li>
+                <li>Approve the hold{isSimulated() ? "" : " in PayPal with the sandbox buyer below"}. You are not charged.</li>
+                <li>In the kitchen, pick the suggested swaps and nod. Watch PayPal capture the lower amount, or decline and watch PayPal void the hold.</li>
               </ol>
             </div>
-            <div className="self-start rounded-2xl bg-cream p-4 text-sm">
+            {!isSimulated() && <div className="self-start rounded-2xl bg-cream p-4 text-sm">
               <div className="font-medium">PayPal sandbox buyer</div>
               {process.env.SANDBOX_BUYER_EMAIL ? (
                 <div className="mt-2 space-y-1 font-mono text-xs">
@@ -88,19 +81,8 @@ export default async function Home() {
                 <div className="mt-2 text-xs text-muted">Shown here once configured. Any PayPal sandbox personal account works.</div>
               )}
               <div className="mt-3 text-xs text-muted">Test accounts on PayPal&rsquo;s sandbox hold no real money.</div>
-            </div>
+            </div>}
           </div>
-        </section>
-
-        <section className="grid gap-4 py-8 md:grid-cols-4">
-          {STEPS.map((s) => (
-            <div key={s.n} className="rounded-2xl border border-line bg-paper p-5">
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-basil font-display text-sm font-semibold text-white">{s.n}</div>
-              <h3 className="mt-3 font-display text-lg font-semibold">{s.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted">{s.body}</p>
-              <div className="mt-3 font-mono text-[11px] text-basil">{s.api}</div>
-            </div>
-          ))}
         </section>
 
         <section className="mb-6 rounded-3xl border border-line bg-paper p-6 sm:p-8">
@@ -165,7 +147,7 @@ export default async function Home() {
         <section className="mt-6 rounded-3xl bg-basil px-6 py-8 text-white sm:px-10">
           <div className="grid gap-6 md:grid-cols-3">
             <div>
-              <div className="font-display text-xl font-semibold">Built for UK allergen rules</div>
+              <div className="font-display text-xl font-semibold">Built around UK allergen guidance</div>
               <p className="mt-2 text-sm text-white/75">For food ordered remotely, allergen information has to be available before the purchase and again at delivery. Chef&rsquo;s Nod shows the confirmed statement before PayPal approval and prints a sign-off record for the bag.</p>
             </div>
             <div>

@@ -3,7 +3,7 @@
 import { rest } from "../src/lib/paypal";
 
 const url = `${process.env.PUBLIC_URL}/api/paypal/webhook`;
-const events = ["CHECKOUT.ORDER.APPROVED", "PAYMENT.AUTHORIZATION.CREATED", "PAYMENT.AUTHORIZATION.VOIDED", "PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.DECLINED"];
+const events = ["CHECKOUT.ORDER.APPROVED", "PAYMENT.AUTHORIZATION.CREATED", "PAYMENT.AUTHORIZATION.VOIDED", "PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.DECLINED", "PAYMENT.CAPTURE.PENDING", "PAYMENT.CAPTURE.REVERSED"];
 
 const list = await rest<{ webhooks: { id: string; url: string }[] }>("GET", "/v1/notifications/webhooks");
 const existing = list.webhooks.find((w) => w.url === url);

@@ -62,6 +62,7 @@ export type KitchenCheck = {
   risk: "none" | "check" | "high";
   headline: string; // one line for the ticket
   questions: { itemId: string; question: string; suggestedSwapIds: string[] }[];
+  extraRisks?: string[]; // cross-contact risks the AI read in the kitchen notes
   dinerSummary: string; // what the diner was shown before paying
 };
 
@@ -84,6 +85,7 @@ export type Order = {
   status: OrderStatus;
   authorizedMinor: number;
   capturedMinor: number | null;
+  captureStatus?: string; // PayPal's status when it is not plainly COMPLETED
   refundedMinor?: number;
   currency: string;
   paypalOrderId: string | null;

@@ -27,10 +27,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Logo className="h-7 w-7" />
-          <div className="font-sans text-base font-bold">Allergen sign-off record</div>
+          <h1 className="font-sans text-base font-bold">Allergen sign-off record</h1>
         </div>
         <PrintButton />
       </div>
+      <a href={`/o/${o.id}`} className="no-print mt-2 inline-block font-sans text-sm underline underline-offset-2">Back to the order</a>
       <div className="mt-3 border-y border-dashed border-black py-2">
         <div className="font-sans text-lg font-bold">{r.name}</div>
         <div>
@@ -42,7 +43,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <div className="font-bold">ALLERGIES DECLARED</div>
         {o.party.map((p) => (
           <div key={p.name}>
-            {p.name}: {p.allergies.length ? p.allergies.map(allergenLabel).join(", ") : "none declared"}
+            <span className="text-base font-bold">{p.name}: {p.allergies.length ? p.allergies.map(allergenLabel).join(", ") : "none declared"}</span>
             {p.notes ? ` (${p.notes})` : ""}
           </div>
         ))}
@@ -65,7 +66,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   </div>
                 ))}
               {d && (
-                <div className="text-[11px]">
+                <div className="text-xs">
                   {"  "}Contains{ids.length ? " (after changes)" : ""}: {allergensAfter(d, ids).map(allergenLabel).join(", ") || "none of the 14"}
                   {d.mayContain.some((a) => !allergensAfter(d, ids).includes(a)) ? `; may contain: ${d.mayContain.filter((a) => !allergensAfter(d, ids).includes(a)).map(allergenLabel).join(", ")}` : ""}
                 </div>
@@ -92,7 +93,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
 
       <div className="mt-4 flex items-end justify-between gap-4">
-        <div className="text-[10px] leading-snug">
+        <div className="text-[11px] leading-snug">
           This record shows a kitchen sign-off, not an allergen certification. If you are unsure, ask staff before eating. Scan for the live order.
         </div>
         <div className="h-[90px] w-[90px] shrink-0" dangerouslySetInnerHTML={{ __html: qr }} />

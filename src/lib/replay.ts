@@ -1,6 +1,6 @@
 import { placeOrder, chefDecides } from "./orders";
-import { dishes, restaurants } from "./db";
-import { planSwaps } from "./conflicts";
+import { dishes, events, orders, restaurants } from "./db";
+import { allergiesFor, planSwaps } from "./conflicts";
 import type { Person } from "./types";
 import type { AllergenId } from "./allergens";
 
@@ -25,6 +25,24 @@ const SCRIPTS: Script[] = [
   { diner: "James", party: [P("James"), P("Noah", "sesame", "milk")], items: [["dish_falafel", "Noah"], ["dish_fish", "James", 2]] },
 ];
 
+// Demo history only: spreads decided replay orders over the past week so the owner's charts have a shape.
+// They stay on the "Replay" channel in every view. Live orders are never touched.
+function backdate(id: string, n: number) {
+  const o = orders.get(id);
+  if (!o?.decision) return;
+  const placed = new Date();
+  placed.setDate(placed.getDate() - (6 - Math.floor(n / 2)));
+  placed.setHours(18, (n * 37) % 180, 0, 0);
+  const authorized = placed.getTime() + 40_000;
+  const decided = new Date(authorized + (45 + ((n * 53) % 240)) * 1000).toISOString();
+  o.createdAt = placed.toISOString();
+  o.decision.decidedAt = decided;
+  orders.save(o);
+  for (const e of events.forOrder(id)) {
+    events.setTime(e.id, e.type === "created" ? o.createdAt : e.type === "authorized" ? new Date(authorized).toISOString() : decided);
+  }
+}
+
 export async function runReplay(count: number, decide: boolean, baseUrl: string) {
   const r = restaurants.first()!;
   const menu = dishes.list(r.id);
@@ -43,7 +61,7 @@ export async function runReplay(count: number, decide: boolean, baseUrl: string)
     let unresolvable = false;
     for (const item of order.items) {
       const dish = menu.find((d) => d.id === item.dishId)!;
-      const allergies = new Set(order.party.find((p) => p.name === item.forPerson)?.allergies ?? []);
+      const allergies = allergiesFor(order.party, item.forPerson);
       if (!dish.contains.some((a) => allergies.has(a))) continue;
       const plan = planSwaps(dish, allergies);
       if (!plan.resolvable) unresolvable = true;
@@ -51,6 +69,7 @@ export async function runReplay(count: number, decide: boolean, baseUrl: string)
     }
     const outcome = unresolvable ? "declined" : applied.length ? "approved_with_changes" : "approved";
     await chefDecides(order.id, outcome, applied, outcome === "declined" ? "Can't remove the allergen from this dish" : "");
+    backdate(order.id, out.length);
     out.push({ id: order.id, outcome });
   }
   return out;

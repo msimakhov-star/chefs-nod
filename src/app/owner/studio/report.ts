@@ -23,29 +23,18 @@ const money: AgPageState = {
     "kpi-nod": kpi("Average seconds to nod", avg("orders.nodSeconds")),
     "held-vs-captured": {
       type: "combo-chart-grouped-column-line",
-      dataMapping: { categoryKey: [{ id: "calendar::day" }], valueKey: [sum("orders.held"), sum("orders.captured")], secondaryValueKey: [{ id: "captureRate" }] },
-      format: { ...title("Held and captured by day, with capture rate"), style: { theme: { common: { legend: { enabled: true } } } } },
+      dataMapping: { categoryKey: [{ id: "calendar::day" }], valueKey: [sum("orders.held"), sum("orders.captured")], secondaryValueKey: [] },
+      format: { ...title("Held and captured by day"), style: { theme: { common: { legend: { enabled: true } } } } },
     },
     "capture-rate": {
       type: "radial-gauge",
       dataMapping: { value: [{ id: "captureRate" }] },
       format: { ...title("Capture rate"), style: { scaleLabel: { min: 0, max: 1 }, label: { typography: typo(24, "bold") }, secondaryLabel: { enabled: true, text: "of held money captured", typography: typo(12) } } },
     },
-    "by-outcome": {
-      type: "donut-chart",
-      dataMapping: { categoryKey: [{ id: "orders.outcome" }], valueKey: [sum("orders.held")] },
-      format: { ...title("Held money by the chef's decision"), style: { custom: { pieDataLabel: { enabled: true }, totalLabel: { enabled: true } } } },
-    },
     "by-channel": {
       type: "column-chart-stacked",
       dataMapping: { categoryKey: [{ id: "orders.channel" }], valueKey: [sum("orders.one")], legendKey: [{ id: "orders.outcome" }] },
       format: { ...title("Orders by channel and decision"), style: { theme: { common: { legend: { enabled: true } } } } },
-    },
-    ledger: {
-      type: "grid",
-      dataMapping: { cols: [{ id: "orders.ref" }, { id: "orders.createdAt" }, { id: "orders.diner" }, { id: "orders.channel" }, { id: "orders.outcome" }, sum("orders.held"), sum("orders.captured"), sum("orders.released"), avg("orders.nodSeconds")] },
-      sort: [{ field: { id: "orders.createdAt" }, direction: "desc" }],
-      format: title("Every held order"),
     },
   },
   widgetLayout: {
@@ -55,9 +44,7 @@ const money: AgPageState = {
     "kpi-nod": at(18, 0, 6, 7),
     "held-vs-captured": at(0, 7, 16, 17),
     "capture-rate": at(16, 7, 8, 17),
-    "by-outcome": at(0, 24, 10, 18),
-    "by-channel": at(10, 24, 14, 18),
-    ledger: at(0, 42, 24, 20),
+    "by-channel": at(0, 24, 24, 18),
   },
 };
 
