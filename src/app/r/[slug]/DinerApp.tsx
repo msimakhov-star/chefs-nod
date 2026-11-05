@@ -291,7 +291,7 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
               </div>
               {Object.entries(byCategory).map(([cat, list]) => (
                 <div key={cat}>
-                  <h3 className="mb-2 font-display text-lg font-semibold">{cat}</h3>
+                  <h2 className="mb-2 font-display text-lg font-semibold">{cat}</h2>
                   <div className="divide-y divide-line">
                     {list.map((d) => {
                       const mine = party.flatMap((p) => p.allergies);

@@ -57,7 +57,7 @@ body {
 @keyframes s4 { 0%, 52% { opacity: 0; transform: translateY(14px); } 57%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
 @keyframes c1 { 0%, 33% { background: transparent; color: inherit; } 35%, 92% { background: #7fd1a0; color: #000; border-color: #7fd1a0; } 100% { background: transparent; } }
 @keyframes c2 { 0%, 38% { background: transparent; color: inherit; } 40%, 92% { background: #7fd1a0; color: #000; border-color: #7fd1a0; } 100% { background: transparent; } }
-@keyframes nod { 0%, 43% { opacity: 0.35; transform: none; } 45% { opacity: 1; transform: scale(1.04); } 48%, 92% { opacity: 1; transform: none; } 100% { opacity: 0.35; } }
+@keyframes nod { 0%, 43% { opacity: 1; transform: none; } 45% { opacity: 1; transform: scale(1.04); } 48%, 92% { opacity: 1; transform: none; } 100% { opacity: 0.35; } }
 .hero-story [data-step] { opacity: 0; animation-duration: 10s; animation-timing-function: ease-out; animation-iteration-count: infinite; animation-fill-mode: both; }
 .hero-story [data-step="1"] { opacity: 1; animation: none; }
 .hero-story [data-step="2"] { animation-name: s2; }
