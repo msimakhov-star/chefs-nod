@@ -123,7 +123,7 @@ function buildServer(origin: string) {
           kitchen_will_check: order.check?.questions.map((q) => q.question) ?? [],
           status_url: `${origin}/o/${order.id}`,
           next_step: isSimulated()
-            ? "Show the allergen statement, then ask your user to open approval_url. Payments on this server are simulated (no PayPal sandbox keys), so approval_url is a labelled stand-in for PayPal's page. Nothing is charged until the chef confirms."
+            ? "Show the allergen statement, then ask your user to open approval_url to approve the hold. Payments on this server are simulated (no PayPal sandbox keys), so approval_url is a labelled stand-in for PayPal's page. Nothing is charged until the chef confirms."
             : "Show the allergen statement, then ask your user to open approval_url and approve in PayPal. Nothing is charged until the chef confirms.",
           how_changes_work: "The statement describes the dish as listed. The chef sees the allergies and notes, applies any swaps, and only then is the diner charged, so a listed allergen here does not mean this order is wrong. If the chef can't make it safely, the hold is released.",
         });
