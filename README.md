@@ -8,7 +8,7 @@ Built for the PayPal AI Hackathon 2026. PayPal sandbox only; no real money moves
 
 ## Why
 
-About 2.4 million UK adults have a clinically confirmed food allergy. When ordering food remotely, 47% of adults with a food hypersensitivity said they received written allergen information. Food Standards Agency guidance for England, Wales and Northern Ireland says allergen information must be provided before purchase and again at delivery. However, AI assistants cannot guarantee safety because cross-contact and recipe swaps are decisions only a kitchen can make.
+About 2.4 million UK adults have a clinically confirmed food allergy. Among adults with a food hypersensitivity, 63% of those who ordered remotely said they got any allergen information, against 73% in person. Food Standards Agency guidance for England, Wales and Northern Ireland says allergen information must be provided before purchase and again at delivery. However, AI assistants cannot guarantee safety because cross-contact and recipe swaps are decisions only a kitchen can make.
 
 Chef's Nod provides a sign-off workflow for independent restaurants. It does not guarantee safety or provide certification. The app allows diners to see specific allergen statements for every dish. The chef makes the final decision on all substitutions and risks.
 
