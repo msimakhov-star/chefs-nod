@@ -64,6 +64,7 @@ export type KitchenCheck = {
   headline: string; // one line for the ticket
   questions: { itemId: string; question: string; suggestedSwapIds: string[] }[];
   extraRisks?: string[]; // cross-contact risks the AI read in the kitchen notes
+  source?: string; // which AI drafted the questions; absent when the rules engine wrote them
   dinerSummary: string; // what the diner was shown before paying
 };
 

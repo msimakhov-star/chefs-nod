@@ -1,6 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { aiProvider } from "./ai";
+import { aiName, aiProvider } from "./ai";
 import { ALLERGEN_IDS, allergenLabel } from "./allergens";
 import { allergiesFor, findConflicts, keepDeclaredAllergies, nameKey, type Conflict } from "./conflicts";
 import { kv } from "./db";
@@ -84,6 +84,7 @@ Write one question per conflicting item (use its itemId). Name the component tha
       headline: trimLine(output.headline, 80) || fallback.headline,
       questions,
       extraRisks: output.extraCrossContactRisks.map((r) => trimLine(r, 140)).slice(0, 4),
+      source: aiName(),
       dinerSummary: fallback.dinerSummary,
     };
   } catch (e) {

@@ -198,13 +198,17 @@ export default function DinerApp({ restaurant, menu, aiName }: { restaurant: Res
       <div className="grid flex-1 gap-5 lg:grid-cols-[1.15fr_1fr]">
         {/* Left: assistant or menu */}
         <section className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-line bg-paper shadow-sm">
+          {aiReady ? (
           <div role="tablist" className="flex border-b border-line text-sm">
             {(["assistant", "menu"] as const).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`min-h-11 flex-1 px-4 py-3 font-medium ${tab === t ? "border-b-2 border-basil text-basil" : "text-muted hover:text-ink"}`}>
-                {t === "assistant" ? (aiReady ? "Ask the ordering assistant" : "Assistant (off)") : "Browse the menu"}
+                {t === "assistant" ? "Ask the ordering assistant" : "Browse the menu"}
               </button>
             ))}
           </div>
+          ) : (
+            <h2 className="border-b border-line px-5 py-3 font-display text-lg font-semibold">Menu</h2>
+          )}
 
           {tab === "assistant" ? (
             <>

@@ -347,6 +347,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
         })}
       </div>
 
+      {order.check?.source && <p className="px-5 pt-2 text-xs text-white/60">Questions drafted by {order.check.source}. The rules engine found the allergens; you decide.</p>}
       {!declining && (
         <div className="px-5 py-3">
           <input aria-label="Optional note to the diner" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the diner (translated for them)" className="min-h-11 w-full rounded-lg border border-white/40 bg-black/30 px-3 text-sm outline-none placeholder:text-white/55 focus:border-white/70" />
