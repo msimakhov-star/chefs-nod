@@ -70,11 +70,13 @@ Write one question per conflicting item (use its itemId). Name the component tha
     if (!output) return fallback;
     const validItem = new Set(order.items.map((i) => i.id));
     const atRisk = new Set(order.items.filter((i) => allergiesFor(order.party, i.forPerson).size || order.party.some((p) => nameKey(p.name) === nameKey(i.forPerson) && p.notes)).map((i) => i.id));
+    // The model sees ids; the chef never should.
+    const named = (t: string) => [...order.items.map((i) => [i.id, i.dishName]), ...dishes.flatMap((d) => [[d.id, d.name], ...d.swaps.map((w) => [w.id, w.label])])].reduce((s, [id, name]) => s.replaceAll(id, name), t).replace(/\(id: [^)]*\)/g, "");
     const questions = output.questions
       .filter((q) => validItem.has(q.itemId) && atRisk.has(q.itemId))
       .map((q) => {
         const dish = dishes.find((d) => d.id === order.items.find((i) => i.id === q.itemId)?.dishId);
-        return { ...q, suggestedSwapIds: q.suggestedSwapIds.filter((s) => dish?.swaps.some((w) => w.id === s)) };
+        return { ...q, question: named(q.question), suggestedSwapIds: q.suggestedSwapIds.filter((s) => dish?.swaps.some((w) => w.id === s)) };
       });
     // Never lose a rules-engine conflict, even if the model skipped it.
     for (const fq of fallback.questions) if (!questions.some((q) => q.itemId === fq.itemId)) questions.push(fq);
@@ -83,7 +85,7 @@ Write one question per conflicting item (use its itemId). Name the component tha
       risk: riskLevel === "none" && crossContact ? "check" : riskLevel,
       headline: fallback.headline, // the rules engine names the allergens at the top; the model only drafts the questions
       questions,
-      extraRisks: output.extraCrossContactRisks.map((r) => trimLine(r, 140)).slice(0, 4),
+      extraRisks: output.extraCrossContactRisks.map((r) => trimLine(named(r), 140)).slice(0, 4),
       source: aiName(),
       dinerSummary: fallback.dinerSummary,
     };
