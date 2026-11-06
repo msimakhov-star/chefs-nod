@@ -53,7 +53,9 @@ Verified PayPal webhooks can move the order too: `CHECKOUT.ORDER.APPROVED` place
 
 ## PayPal developer platform used
 
-- Orders v2 (create with `AUTHORIZE`, authorize) and Payments v2 (capture, partial capture, void, refund) through the APIMatic-generated [PayPal Server SDK](https://www.npmjs.com/package/@paypal/paypal-server-sdk), built with the APIMatic Context Plugin for PayPal
+**Status: no call has reached PayPal yet.** Without sandbox keys the app runs in a labelled simulated-payments mode, and the demo video was recorded that way. Everything below is implemented against the sandbox and runs once `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set; `node scripts/sandbox.mjs <url>` then checks for real ids.
+
+- Orders v2 (create with `AUTHORIZE`, authorize) and Payments v2 (capture, partial capture, void, refund) through the APIMatic-generated [PayPal Server SDK](https://www.npmjs.com/package/@paypal/paypal-server-sdk). The APIMatic Context Plugin's TypeScript guides were read while building.
 - Webhooks with signature verification (`/v1/notifications/verify-webhook-signature`)
 - Catalog Products API: each confirmed dish is synced as a PayPal product, and the product id is sent as the item `sku` on the order
 - Transaction Search, and PayPal's hosted sandbox MCP server, for the owner's money assistant
@@ -61,9 +63,8 @@ Verified PayPal webhooks can move the order too: `CHECKOUT.ORDER.APPROVED` place
 
 ## AI used
 
-- An LLM (Claude or Gemini, set by environment variable) through the Vercel AI SDK: ordering assistant, kitchen sign-off questions, translation, menu photo reading, weekly menu risk report, owner money assistant
-- Model Context Protocol: the restaurant exposes an MCP server (`/api/mcp`) and the owner assistant consumes PayPal's MCP server
-- AG Studio's AI assistant, connected to the same provider through a custom adapter
+- **Has run:** Claude Code, as a real agent, used the restaurant's MCP server (`/api/mcp`) to read the menu, check an allergy and place an order. A local open model (qwen3.5:9b through Ollama, `LOCAL_AI=1`) drafted a kitchen question and translated a diner message into Spanish; the rules engine still states the allergens.
+- **Built in, not yet run on a hosted model:** an LLM (Claude or Gemini, set by environment variable) through the Vercel AI SDK for the ordering assistant, kitchen sign-off questions, translation, menu photo reading, the weekly menu risk report and the owner's money assistant, plus AG Studio's AI assistant through a custom adapter. On a local model the ordering assistant's suggestions were not good enough to show.
 
 ## Try it
 
