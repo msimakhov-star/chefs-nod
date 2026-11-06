@@ -19,7 +19,7 @@ const money: AgPageState = {
   widgets: {
     "kpi-held": kpi("Held in PayPal", sum("orders.held"), "calendar::day"),
     "kpi-captured": kpi("Captured after sign-off", sum("orders.captured"), "calendar::day"),
-    "kpi-released": kpi("Released to diners", sum("orders.released"), "calendar::day"),
+    "kpi-released": kpi("Held, not charged", sum("orders.released"), "calendar::day"),
     "kpi-nod": kpi("Average time to nod (seconds)", avg("orders.nodSeconds")),
     "held-vs-captured": {
       type: "column-chart-grouped",

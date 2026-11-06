@@ -113,7 +113,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
       { headerName: "Chef", width: 120, valueGetter: (p) => (p.data?.decision ? { approved: "Approved", approved_with_changes: "Changed", declined: "Declined" }[p.data.decision.outcome] : "") },
       { headerName: "Held", field: "authorizedMinor", width: 85, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
       { headerName: "Charged", field: "capturedMinor", width: 90, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Released", width: 90, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Not charged", width: 105, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
       { headerName: "Nod time", width: 100, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
     ],
     [],
@@ -127,7 +127,7 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
         <Kpi label="Avg time to nod" value={avgNod == null ? "–" : `${Math.floor(avgNod / 60)}m ${avgNod % 60}s`} />
         <Kpi label="Held now, awaiting chef" value={gbp(heldNow)} />
         <Kpi label="Captured" value={gbp(capturedTotal)} accent />
-        <Kpi label="Released to diners" value={gbp(released)} />
+        <Kpi label="Held, not charged" value={gbp(released)} />
       </div>
       <p className="text-sm text-muted">Select an order to see its PayPal details or send a refund.</p>
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
@@ -507,7 +507,7 @@ function Copilot({ aiName, aiEnabled }: { aiName: string; aiEnabled: boolean }) 
   const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string; tools?: string[] }[]>([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
-  const SUGGEST = ["How much did PayPal release back to diners this week, and why?", "Which orders are still held, and for how long?", "Cross-check our captured orders against PayPal's transaction records."];
+  const SUGGEST = ["How much was held but not charged this week, and why?", "Which orders are still held, and for how long?", "Cross-check our captured orders against PayPal's transaction records."];
   async function ask(text: string) {
     if (!text.trim() || busy) return;
     const history = msgs.map(({ role, content }) => ({ role, content }));

@@ -81,7 +81,7 @@ Write one question per conflicting item (use its itemId). Name the component tha
     const crossContact = output.extraCrossContactRisks.length > 0;
     return {
       risk: riskLevel === "none" && crossContact ? "check" : riskLevel,
-      headline: trimLine(output.headline, 80) || fallback.headline,
+      headline: fallback.headline, // the rules engine names the allergens at the top; the model only drafts the questions
       questions,
       extraRisks: output.extraCrossContactRisks.map((r) => trimLine(r, 140)).slice(0, 4),
       source: aiName(),

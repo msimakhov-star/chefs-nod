@@ -90,7 +90,7 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
     sources: [
       {
         id: "orders",
-        description: "One row per order whose money was held in PayPal. Released = held minus captured, for finished orders.",
+        description: "One row per order whose money was held in PayPal. Not charged = held minus captured, for finished orders.",
         data: orderRows,
         fields: fields([
           ["id", "Order ID", "textFormat", true],
@@ -101,7 +101,7 @@ export function buildStudioData(orders: (Order & { authorizedAt: string | null }
           ["outcome", "Chef's decision", "textFormat"],
           ["held", "Held", "currencyFormat"],
           ["captured", "Captured", "currencyFormat"],
-          ["released", "Released", "currencyFormat"],
+          ["released", "Not charged", "currencyFormat"],
           ["nodSeconds", "Seconds to nod", "integerFormat"],
           ["allergyOrder", "Allergy orders", "integerFormat"],
           ["declined", "Declined", "integerFormat"],

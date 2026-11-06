@@ -27,8 +27,9 @@ export function aiProvider() {
     supportsStructuredOutputs: true,
     transformRequestBody: (body) => ({ ...body, reasoning_effort: "none" }), // thinking makes local models too slow
   });
-  const m = p.chatModel(process.env.AI_SMART_MODEL || "qwen3.5:9b");
-  return { name: "Ollama (local)", smart: m, fast: m };
+  const id = process.env.AI_SMART_MODEL || "qwen3.5:9b";
+  const m = p.chatModel(id);
+  return { name: `a local model (${id})`, smart: m, fast: m };
 }
 
-export const aiName = () => (process.env.ANTHROPIC_API_KEY ? "Claude" : process.env.GEMINI_API_KEY ? "Gemini" : process.env.LOCAL_AI === "1" ? "Ollama (local)" : "not configured");
+export const aiName = () => (process.env.ANTHROPIC_API_KEY ? "Claude" : process.env.GEMINI_API_KEY ? "Gemini" : process.env.LOCAL_AI === "1" ? `a local model (${process.env.AI_SMART_MODEL || "qwen3.5:9b"})` : "not configured");

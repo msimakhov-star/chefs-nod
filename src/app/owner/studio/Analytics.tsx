@@ -11,7 +11,7 @@ import { chefsNodAdapter } from "./adapter";
 
 const STARTERS: AgAiPromptStarter[] = [
   { label: "Which dishes cost us sales?", prompt: "Which dishes are declined most often, and for which allergens? Add a chart." },
-  { label: "Money released", prompt: "How much money was released back to diners, split by the chef's decision?" },
+  { label: "Held, not charged", prompt: "How much money was held but not charged, split by the chef's decision?" },
   { label: "Summarise this page", prompt: "Summarise what this page shows and what stands out." },
 ];
 const ai: AgAiHarnessSetup = ({ api }) => createAiHarness(api, { adapter: chefsNodAdapter, promptStarters: STARTERS });

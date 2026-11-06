@@ -271,7 +271,7 @@ function recordCapture(order: Order, captureId: string, capturedMinor: number, s
   log(
     order,
     "captured",
-    `Chef ${decision.outcome === "approved" ? "approved" : `approved with changes (${changes})`}. ${fmt(capturedMinor)} charged${capturedMinor < order.authorizedMinor ? `, ${fmt(order.authorizedMinor - capturedMinor)} released` : ""}.`,
+    `Chef ${decision.outcome === "approved" ? "approved" : `approved with changes (${changes})`}. ${fmt(capturedMinor)} charged${capturedMinor < order.authorizedMinor ? `, ${fmt(order.authorizedMinor - capturedMinor)} of the hold not charged` : ""}.`,
     { amount: capturedMinor },
   );
   return order;

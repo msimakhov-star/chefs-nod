@@ -104,7 +104,7 @@ export default function OrderStatusView({ initial, restaurant, menu }: { initial
         <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
           <Money label={order.status === "awaiting_chef" ? "Held by PayPal" : order.status === "awaiting_payment" ? "PayPal will hold" : "Was held"} value={gbp(order.authorizedMinor)} />
           <Money label="Charged" value={order.status === "captured" || order.status === "refunded" ? gbp(order.capturedMinor) : order.status === "awaiting_chef" ? "Not yet" : "£0.00"} strong={order.status === "captured"} />
-          <Money label={order.status === "refunded" ? "Refunded" : "Released to you"} value={order.status === "refunded" ? gbp(order.refundedMinor) : order.status === "captured" ? gbp(order.authorizedMinor - (order.capturedMinor ?? 0)) : final === "released" ? gbp(order.authorizedMinor) : "–"} />
+          <Money label={order.status === "refunded" ? "Refunded" : "Not charged"} value={order.status === "refunded" ? gbp(order.refundedMinor) : order.status === "captured" ? gbp(order.authorizedMinor - (order.capturedMinor ?? 0)) : final === "released" ? gbp(order.authorizedMinor) : "–"} />
         </div>
       </div>
 

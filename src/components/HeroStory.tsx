@@ -50,7 +50,7 @@ export default function HeroStory() {
         </div>
         <div className="text-sm">
           <div className="font-semibold text-basil">Confirmed by the chef</div>
-          <div className="text-basil/80">Charged £23.00 · £1.50 released back</div>
+          <div className="text-basil/80">Charged £23.00 · £1.50 not charged</div>
         </div>
       </div>
     </div>
