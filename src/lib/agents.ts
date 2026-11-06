@@ -90,7 +90,11 @@ Write one question per conflicting item (use its itemId). Ask the chef; do not i
       risk: riskLevel === "none" && crossContact ? "check" : riskLevel,
       headline: fallback.headline, // the rules engine names the allergens at the top; the model only drafts the questions
       questions,
-      extraRisks: output.extraCrossContactRisks.map((r) => trimLine(named(r), 140)).slice(0, 4),
+      // Only risks that name an allergen someone in this order declared: a fryer or nut note is noise on a sesame ticket.
+      extraRisks: output.extraCrossContactRisks
+        .filter((r) => order.party.flatMap((p) => p.allergies).some((a) => r.toLowerCase().includes(allergenLabel(a).toLowerCase().split(" ")[0])))
+        .map((r) => trimLine(named(r), 140))
+        .slice(0, 3),
       source: aiName(),
       dinerSummary: fallback.dinerSummary,
     };
