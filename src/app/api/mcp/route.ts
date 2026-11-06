@@ -78,7 +78,9 @@ function buildServer(origin: string) {
           person: c.person,
           contains: c.contains.map(allergenLabel),
           may_contain: c.mayContain.map(allergenLabel),
-          swaps_that_remove_it: c.fixingSwapIds.map((s) => menu.find((d) => d.id === c.dishId)?.swaps.find((w) => w.id === s)?.label),
+          // All of these together; a real agent read the old name as either-or.
+          swaps_needed_together: c.fixingSwapIds.map((s) => menu.find((d) => d.id === c.dishId)?.swaps.find((w) => w.id === s)?.label),
+          swaps_remove_every_listed_allergen: c.resolvable,
         })),
         kitchen_notes: r.kitchenNotes,
         reminder: "No dish is certified safe by this tool. Every allergy order is held in PayPal and only charged after the chef confirms it.",

@@ -183,7 +183,7 @@ ok(!!init.result?.serverInfo, "initialize");
 const tools = (await mcp(2, "tools/list", {})).result?.tools?.map((t) => t.name).sort();
 ok(JSON.stringify(tools) === JSON.stringify(["check_allergies", "get_menu", "get_order_status", "place_order"]), "four tools listed", JSON.stringify(tools));
 const chk = await call("check_allergies", { party: [{ name: "Dan", allergies: ["sesame"] }], items: [{ dish_id: "dish_halloumi", for_person: "Dan" }] });
-ok(chk.parsed.conflicts[0].swaps_that_remove_it.length === 2, "check_allergies names both swaps");
+ok(chk.parsed.conflicts[0].swaps_needed_together.length === 2 && chk.parsed.conflicts[0].swaps_remove_every_listed_allergen === true, "check_allergies says both swaps are needed together");
 {
   const bad = await mcp(9, "tools/call", { name: "check_allergies", arguments: { party: [{ name: "Dan", allergies: ["sesame"] }], items: [{ dish_id: "dish_nope", for_person: "Dan" }] } });
   ok(bad.result?.isError === true, "check_allergies refuses a mistyped dish instead of an all-clear", JSON.stringify(bad).slice(0, 160));
