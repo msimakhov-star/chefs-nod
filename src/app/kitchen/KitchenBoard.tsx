@@ -376,7 +376,7 @@ function Ticket({ order, menu, now, signoffMinutes, onDone, onCharged }: { order
                 Can&rsquo;t do it
               </button>
             </div>
-            {changed && delta < 0 && <div className="mt-2 text-sm text-white/65">PayPal captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold and closes it. The diner sees the change in their PayPal receipt.</div>}
+            {changed && delta < 0 && <div className="mt-2 text-sm text-white/65">Captures {gbp(newTotal)} of the {gbp(order.authorizedMinor)} hold as the final capture, with a note to the diner explaining the change.</div>}
           </>
         ) : (
           <div ref={declineRef} className="space-y-2">
