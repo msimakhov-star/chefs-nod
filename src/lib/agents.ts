@@ -2,7 +2,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { aiName, aiProvider } from "./ai";
 import { ALLERGEN_IDS, allergenLabel } from "./allergens";
-import { allergiesFor, findConflicts, keepDeclaredAllergies, nameKey, type Conflict } from "./conflicts";
+import { allergiesFor, findConflicts, keepDeclaredAllergies, type Conflict } from "./conflicts";
 import { kv } from "./db";
 import type { Dish, KitchenCheck, Order, Person, Restaurant } from "./types";
 
@@ -69,9 +69,9 @@ Write one question per conflicting item (use its itemId). Name the component tha
     });
     if (!output) return fallback;
     const validItem = new Set(order.items.map((i) => i.id));
-    const atRisk = new Set(order.items.filter((i) => allergiesFor(order.party, i.forPerson).size || order.party.some((p) => nameKey(p.name) === nameKey(i.forPerson) && p.notes)).map((i) => i.id));
+    const atRisk = new Set(order.items.filter((i) => allergiesFor(order.party, i.forPerson).size).map((i) => i.id)); // only people with a declared allergy get AI questions; notes still show on the ticket
     // The model sees ids; the chef never should.
-    const named = (t: string) => [...order.items.map((i) => [i.id, i.dishName]), ...dishes.flatMap((d) => [[d.id, d.name], ...d.swaps.map((w) => [w.id, w.label])])].reduce((s, [id, name]) => s.replaceAll(id, name), t).replace(/\(id: [^)]*\)/g, "");
+    const named = (t: string) => [...order.items.map((i) => [i.id, i.dishName]), ...dishes.flatMap((d) => [[d.id, d.name], ...d.swaps.map((w) => [w.id, w.label])])].reduce((s, [id, name]) => s.replaceAll(id, name), t).replace(/\(id: [^)]*\)/g, "").replace(/\*\*|__/g, ""); // plain text: the ticket shows no markdown
     const questions = output.questions
       .filter((q) => validItem.has(q.itemId) && atRisk.has(q.itemId))
       .map((q) => {

@@ -22,11 +22,11 @@ Sources: [University of Manchester on the FSA PAFA report](https://www.mancheste
 
 ## What it does
 
-- Ordering assistant: The diner speaks or types to say who is eating and what they cannot have. The AI builds a basket from confirmed dishes and shows the allergen statement for every dish, which the diner ticks as read before paying.
-- PayPal authorization: The app uses PayPal Orders v2 to hold funds without charging the diner. Approving in PayPal places the hold.
-- Kitchen screen: Orders appear live with a chime and a countdown. The AI generates specific questions for the chef and suggests ingredient swaps based on the owner's defined rules.
+- Ordering: The diner builds a basket from the owner's confirmed menu and marks each person's allergies and severity. The rules engine shows the allergen statement for every dish, which the diner ticks as read before paying. An AI ordering assistant is built in, but it needs a hosted model and has not been shown working (see AI used).
+- PayPal authorization: The app uses PayPal Orders v2 to hold funds without charging the diner. Approving in PayPal places the hold. Without sandbox keys this step is a labelled simulated stand-in.
+- Kitchen screen: Orders appear live with a chime and a countdown. The rules engine shows which part of each dish carries the allergen and the owner-defined swaps that remove it. An AI model drafts the question for the chef; so far that has run only on a local model (qwen3.5:9b), in one test.
 - Chef decision: The chef can approve the order, approve with a lower price and a note, or decline the order. If no response occurs within 10 minutes, the payment hold is voided.
-- Diner updates: The diner's page updates live with translations. The app generates a printable sign-off record with a QR code for the delivery bag.
+- Diner updates: The diner's page updates live, and messages are translated by the AI model (tested on a local model, into Spanish). The app generates a printable sign-off record with a QR code for the delivery bag.
 - AI agents and owner dashboard: The app provides an MCP server for AI agents to place orders and a dashboard for owners to manage orders, analytics, and menu imports.
 
 ## How the money moves
@@ -86,7 +86,7 @@ Requirements: Node.js 24, pnpm.
 ```bash
 pnpm install
 cp .env.example .env.local   # add your PayPal sandbox keys and an AI key
-pnpm dev                      # http://localhost:3000
+pnpm dev                      # http://localhost:3000, simulated payments, no keys needed
 pnpm check                    # allergen and swap logic self-check
 ```
 
