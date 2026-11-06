@@ -388,6 +388,14 @@ const dueNow = (id: string) => {
   assert.match(out.reply, /From the kitchen's confirmed list:\nHalloumi burger for Dan: contains Sesame/);
 }
 
+// An AI question that promises an allergen is gone never reaches the chef.
+{
+  const { overclaims } = await import("./agents");
+  assert.ok(overclaims('Use "Plain sourdough bun" and "Leave out the tahini slaw" to remove all sesame.'));
+  assert.ok(overclaims("This makes the burger sesame-free."));
+  assert.ok(!overclaims("The bun and the slaw carry sesame. Can you swap both and keep the plain bun away from the sesame brioche?"));
+}
+
 // Translations are cached, so a polling agent never pays twice.
 {
   kv.set("tr:ru:Hello", "Privet");

@@ -9,7 +9,7 @@ import type { Dish, KitchenCheck, Order, Person, Restaurant } from "./types";
 const allergenEnum = z.enum(ALLERGEN_IDS as [string, ...string[]]);
 
 const SAFETY_RULES = `Rules you never break:
-- Never call a dish "safe", "free from" or "X-free". Only the kitchen can confirm that.
+- Never call a dish "safe", "free from" or "X-free", and never say a swap removes all of an allergen. Swaps remove ingredients; cross-contact is the kitchen's call.
 - Only use allergen facts from the owner-confirmed rows you are given. If something is not in the rows, say the kitchen must check.
 - Never invent dishes, prices or swaps. Swaps can only come from the dish's listed swaps.`;
 
@@ -22,6 +22,9 @@ const menuForPrompt = (dishes: Dish[]) =>
       return `- id=${d.id} | ${d.name} | ${d.category} | £${(d.priceMinor / 100).toFixed(2)} | ${d.description} | components: ${comps} | may contain (cross-contact): ${d.mayContain.join(", ") || "none"} | swaps: ${swaps || "none"}`;
     })
     .join("\n");
+
+/** A sentence that promises an allergen is gone. Only the kitchen can say that. */
+export const overclaims = (t: string) => /\b(remove|removes|removing) all\b|\ballergen[- ]free\b|\b\w+-free\b|\bfree (from|of)\b|\bsafe\b|\bno risk\b/i.test(t);
 
 // ---------- 1. Kitchen sign-off agent: writes the question the chef has to answer ----------
 
@@ -43,6 +46,7 @@ export async function kitchenCheck(order: Order, conflicts: Conflict[], dishes: 
   try {
     const { output } = await generateText({
       model: aiProvider().fast,
+      temperature: 0, // the same order should get the same question
       output: Output.object({
         schema: z.object({
           headline: z.string().describe("One short line for the top of the kitchen ticket, max 70 characters"),
@@ -65,15 +69,16 @@ Confirmed conflicts found by the rules engine: ${JSON.stringify(conflicts)}
 Menu rows:
 ${menuForPrompt(dishes)}
 
-Write one question per conflicting item (use its itemId). Name the component that carries the allergen and refer to swaps by their label in quotes, never by id. Put the ids of the swaps you recommend in suggestedSwapIds; a dish can need more than one swap when the allergen sits in several components. Also check the kitchen notes for cross-contact risks (shared fryer, shared prep area) that touch a person's declared allergies, including items without a direct conflict, and add a question for those items. Never ask about people with no declared allergies or notes.`,
+Write one question per conflicting item (use its itemId). Ask the chef; do not instruct them. Name the component that carries the allergen and refer to swaps by their label in quotes, never by id. Put the ids of the swaps you recommend in suggestedSwapIds; a dish can need more than one swap when the allergen sits in several components. Also check the kitchen notes for cross-contact risks (shared fryer, shared prep area) that touch a person's declared allergies, including items without a direct conflict, and add a question for those items. Never ask about people with no declared allergies or notes.`,
     });
     if (!output) return fallback;
     const validItem = new Set(order.items.map((i) => i.id));
     const atRisk = new Set(order.items.filter((i) => allergiesFor(order.party, i.forPerson).size).map((i) => i.id)); // only people with a declared allergy get AI questions; notes still show on the ticket
+    // A model that promises an allergen is gone breaks the one rule this app exists for, so that question falls back to the rules engine's.
     // The model sees ids; the chef never should.
     const named = (t: string) => [...order.items.map((i) => [i.id, i.dishName]), ...dishes.flatMap((d) => [[d.id, d.name], ...d.swaps.map((w) => [w.id, w.label])])].reduce((s, [id, name]) => s.replaceAll(id, name), t).replace(/\(id: [^)]*\)/g, "").replace(/\*\*|__/g, ""); // plain text: the ticket shows no markdown
     const questions = output.questions
-      .filter((q) => validItem.has(q.itemId) && atRisk.has(q.itemId))
+      .filter((q) => validItem.has(q.itemId) && atRisk.has(q.itemId) && !overclaims(q.question))
       .map((q) => {
         const dish = dishes.find((d) => d.id === order.items.find((i) => i.id === q.itemId)?.dishId);
         return { ...q, question: named(q.question), suggestedSwapIds: q.suggestedSwapIds.filter((s) => dish?.swaps.some((w) => w.id === s)) };
