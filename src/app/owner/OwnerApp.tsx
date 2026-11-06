@@ -111,9 +111,9 @@ function Ledger({ orders, onChange }: { orders: OOrder[]; onChange: () => void }
       { headerName: "Allergies", flex: 1, minWidth: 110, valueGetter: (p) => p.data?.party.flatMap((x) => x.allergies.map(allergenLabel)).join(", ") || "none" },
       { headerName: "Status", field: "status", width: 185, cellRenderer: (p: { value: Order["status"] }) => <StatusBadge status={p.value} /> },
       { headerName: "Chef", width: 120, valueGetter: (p) => (p.data?.decision ? { approved: "Approved", approved_with_changes: "Changed", declined: "Declined" }[p.data.decision.outcome] : "") },
-      { headerName: "Held", field: "authorizedMinor", width: 85, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Held", width: 85, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId ? p.data.authorizedMinor : null), valueFormatter: (p) => gbp(p.value) }, // nothing is held until the diner approves
       { headerName: "Charged", field: "capturedMinor", width: 90, type: "rightAligned", valueFormatter: (p) => gbp(p.value) },
-      { headerName: "Not charged", width: 105, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
+      { headerName: "Not charged", width: 125, type: "rightAligned", valueGetter: (p) => (p.data?.authorizationId && p.data.status !== "awaiting_chef" ? p.data.authorizedMinor - (p.data.capturedMinor ?? 0) : null), valueFormatter: (p) => gbp(p.value) },
       { headerName: "Nod time", width: 100, valueGetter: (p) => (p.data?.decision && p.data.authorizedAt ? Math.round((Date.parse(p.data.decision.decidedAt) - Date.parse(p.data.authorizedAt)) / 1000) : null), valueFormatter: (p) => (p.value == null ? "" : `${Math.floor(p.value / 60)}m ${p.value % 60}s`) },
     ],
     [],
