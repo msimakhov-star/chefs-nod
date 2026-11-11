@@ -68,13 +68,13 @@ Verified PayPal webhooks can move the order too: `CHECKOUT.ORDER.APPROVED` place
 
 ## Try it
 
-- Live demo: _URL added at submission_
-- Open the kitchen screen in a second window, then place an order and approve the hold with the PayPal sandbox buyer shown on the home page.
+- No hosted demo: run it locally (below). Demo video: https://www.youtube.com/watch?v=V2YraciboIU
+- Open the kitchen screen in a second window, then place an order. With PayPal sandbox keys you approve the hold with the sandbox buyer shown on the home page; without keys the approval step is a labelled simulated page.
 
 ### Connect your own AI assistant
 
 ```bash
-claude mcp add --transport http chefs-nod https://<your-deployment>/api/mcp
+claude mcp add --transport http chefs-nod http://localhost:3000/api/mcp   # or https://<your-deployment>/api/mcp
 ```
 
 Then ask: "Order dinner from Juniper & Ash for me and Dan. Dan is allergic to sesame." Tested with Claude Code; other remote MCP clients have not been tried.
